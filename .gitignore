@@ -1,0 +1,30 @@
+# Folder
+data
+checkpoint
+Data
+__pycache__
+wandb
+
+# Image
+*.jpg
+*.csv
+*.xlsx
+
+# File
+*.zip
+*.tar
+*.tar.gz
+*.txt
+*.pdf
+
+#WandB
+*.wandb
+*.log
+*.patch
+debug
+
+#yaml
+*.yaml
+
+#json
+*.json
