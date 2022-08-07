@@ -4,6 +4,7 @@ checkpoint
 Data
 __pycache__
 wandb
+cifar-100-python
 
 # Image
 *.jpg
@@ -29,5 +30,5 @@ debug
 #json
 *.json
 
-# model
+#model
 *.pt
