@@ -3,7 +3,10 @@
 MY_PYTHON="python"
 # MNIST_ROTA="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 1000 --data_file mnist_rotations.pt    --cuda no  --seed 0"
 # MNIST_PERM="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 1000 --data_file mnist_permutations.pt --cuda no  --seed 0"
-CIFAR_100i="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 2500 --data_file cifar100.pt           --cuda yes --seed 0"
+
+#CIFAR-100 is not use n_layers and n_hiddens becuase models is resnet-18
+#samples_per_task is shuffle index / e.g) number of data : 2500, samples_per_task 2000, 1~2000 shuffle, 2001~2500 fixed
+CIFAR_100i="--n_layers 2 --n_hiddens 100 --data_path datasets/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 2500 --data_file cifar100.pt           --cuda yes --seed 0"
 
 # build datasets
 cd datasets/
@@ -58,7 +61,11 @@ cd ..
 # model "GEM"
 # $MY_PYTHON main.py $MNIST_ROTA --model gem --lr 0.1 --n_memories 256 --memory_strength 0.5
 # $MY_PYTHON main.py $MNIST_PERM --model gem --lr 0.1 --n_memories 256 --memory_strength 0.5
-# $MY_PYTHON main.py $CIFAR_100i --model gem --lr 0.1 --n_memories 256 --memory_strength 0.5
+
+# n_memories -> [n_tasks, n_memories, inputs] / inputs : cifar(3x32x32) -> 3,072 -> flatten
+# n_memories -> Each task has 256 images
+$MY_PYTHON main.py $CIFAR_100i --model gem --lr 0.1 --n_memories 256 --memory_strength 0.5
+
 
 # # plot results
 # cd results/

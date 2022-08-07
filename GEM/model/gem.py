@@ -4,6 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+from turtle import back
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -102,8 +103,10 @@ class Net(nn.Module):
         self.is_cifar = (args.data_file == 'cifar100.pt')
         if self.is_cifar:
             self.net = ResNet18(n_outputs)
+            print("ResNet-18")
         else:
             self.net = MLP([n_inputs] + [nh] * nl + [n_outputs])
+            print("MLP")
 
         self.ce = nn.CrossEntropyLoss()
         self.n_outputs = n_outputs
@@ -121,11 +124,11 @@ class Net(nn.Module):
             self.memory_data = self.memory_data.cuda()
             self.memory_labs = self.memory_labs.cuda()
 
-        # allocate temporary synaptic memory
+        # allocate temporary synaptic memory -> previous model parameters
         self.grad_dims = []
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
-        self.grads = torch.Tensor(sum(self.grad_dims), n_tasks)
+        self.grads = torch.Tensor(sum(self.grad_dims), n_tasks) # each task grads
         if args.cuda:
             self.grads = self.grads.cuda()
 
@@ -157,11 +160,11 @@ class Net(nn.Module):
             self.old_task = t
 
         # Update ring buffer storing examples from current task
-        bsz = y.data.size(0)
-        endcnt = min(self.mem_cnt + bsz, self.n_memories)
-        effbsz = endcnt - self.mem_cnt
+        bsz = y.data.size(0)    # batch size
+        endcnt = min(self.mem_cnt + bsz, self.n_memories) # batch ~ n_memories
+        effbsz = endcnt - self.mem_cnt  # batch size
         self.memory_data[t, self.mem_cnt: endcnt].copy_(
-            x.data[: effbsz])
+            x.data[:effbsz])
         if bsz == 1:
             self.memory_labs[t, self.mem_cnt] = y.data[0]
         else:
@@ -170,10 +173,11 @@ class Net(nn.Module):
         self.mem_cnt += effbsz
         if self.mem_cnt == self.n_memories:
             self.mem_cnt = 0
-
+        
         # compute gradient on previous tasks
         if len(self.observed_tasks) > 1:
             for tt in range(len(self.observed_tasks) - 1):
+                print("tt : ", tt)
                 self.zero_grad()
                 # fwd/bwd on the examples in the memory
                 past_task = self.observed_tasks[tt]

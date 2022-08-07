@@ -131,6 +131,7 @@ def life_experience(model, continuum, x_te, args):
             result_a.append(eval_tasks(model, x_te, args))
             result_t.append(current_task)
             current_task = t
+            print(current_task)
 
         v_x = x.view(x.size(0), -1)
         v_y = y.long()
