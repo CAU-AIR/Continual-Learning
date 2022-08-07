@@ -28,3 +28,6 @@ debug
 
 #json
 *.json
+
+# model
+*.pt
