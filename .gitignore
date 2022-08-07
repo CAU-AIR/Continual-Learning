@@ -5,6 +5,7 @@ Data
 __pycache__
 wandb
 cifar-100-python
+Dataset
 
 # Image
 *.jpg
