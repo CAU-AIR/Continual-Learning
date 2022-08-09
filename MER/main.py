@@ -208,8 +208,6 @@ if __name__ == "__main__":
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',
                         help='Use GPU?')
-    parser.add_argument('--gpu', type=int, default=0,
-                        help='GPU index')
     parser.add_argument('--seed', type=int, default=0,
                         help='random seed of model')
     parser.add_argument('--log_every', type=int, default=100,
@@ -246,7 +244,6 @@ if __name__ == "__main__":
     if args.cuda:
         print("Found GPU:", torch.cuda.get_device_name(0))
         torch.cuda.manual_seed_all(args.seed)
-        device = torch.device(args.gpu if torch.cuda.is_available() else 'cpu')
 
     # load data
     x_tr, x_te, n_inputs, n_outputs, n_tasks = load_datasets(args)
