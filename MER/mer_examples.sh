@@ -1,8 +1,9 @@
 #!/bin/bash
+export CUDA_VISIBLE_DEVICES=2
 
 seed=$1
 # ROT="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 1 --log_every 100 --samples_per_task 1000 --data_file mnist_rotations.pt    --cuda no  --seed"
-ROT="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 1 --log_every 100 --samples_per_task 1000 --data_file mnist_rotations.pt    --cuda yes  --seed"
+ROT="--n_layers 2 --n_hiddens 100 --data_path ../Dataset/RMNIST/ --save_path results/ --batch_size 1 --log_every 100 --samples_per_task 1000 --data_file mnist_rotations.pt --gpu 2    --cuda yes  --seed"
 # PERM="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 1 --log_every 100 --samples_per_task 1000 --data_file mnist_permutations.pt --cuda no  --seed"
 # MANY="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 1 --log_every 100 --samples_per_task 200 --data_file mnist_manypermutations.pt --cuda no  --seed"
 
