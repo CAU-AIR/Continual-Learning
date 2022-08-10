@@ -16,7 +16,6 @@ Dataset
 *.zip
 *.tar
 *.tar.gz
-*.txt
 *.pdf
 
 #WandB
