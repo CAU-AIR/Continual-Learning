@@ -291,4 +291,4 @@ class ExStream(nn.Module):
             idx = torch.argmin(psi)
             idx_row = idx / mb
             idx_col = idx % mb
-        return torch.min(idx_row, idx_col), torch.max(idx_row, idx_col)
+        return torch.min(idx_row, idx_col).long(), torch.max(idx_row, idx_col).long()
