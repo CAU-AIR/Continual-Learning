@@ -1,4 +1,5 @@
 #!/bin/bash
+export CUDA_VISIBLE_DEVICES=2
 
 MY_PYTHON="python"
 # MNIST_ROTA="--n_layers 2 --n_hiddens 100 --data_path data/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 1000 --data_file mnist_rotations.pt    --cuda no  --seed 0"
@@ -6,7 +7,7 @@ MY_PYTHON="python"
 
 #CIFAR-100 is not use n_layers and n_hiddens becuase models is resnet-18
 #samples_per_task is shuffle index / e.g) number of data : 2500, samples_per_task 2000, 1~2000 shuffle, 2001~2500 fixed
-CIFAR_100i="--n_layers 2 --n_hiddens 100 --data_path datasets/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 2500 --data_file cifar100.pt           --cuda yes --seed 0"
+CIFAR_100i="--n_layers 2 --n_hiddens 100 --data_path ../Dataset/CIFAR100/ --save_path results/ --batch_size 10 --log_every 100 --samples_per_task 2500 --data_file disjoint_cifar100.pt           --cuda yes --seed 0"
 
 # build datasets
 cd datasets/
@@ -30,7 +31,8 @@ cd ..
 # 	--n_tasks 20
 
 $MY_PYTHON cifar100.py \
-	--o cifar100.pt \
+	--i ../../Dataset/CIFAR100/cifar100.pt \
+	--o ../../Dataset/CIFAR100/disjoint_cifar100.pt \
 	--seed 0 \
 	--n_tasks 20	# n_tasks -> number of tasks
 
