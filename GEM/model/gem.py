@@ -100,7 +100,7 @@ class Net(nn.Module):
         super(Net, self).__init__()
         nl, nh = args.n_layers, args.n_hiddens
         self.margin = args.memory_strength
-        self.is_cifar = (args.data_file == 'cifar100.pt')
+        self.is_cifar = (args.data_file == 'disjoint_cifar100.pt')
         if self.is_cifar:
             self.net = ResNet18(n_outputs)
             print("ResNet-18")
@@ -177,7 +177,6 @@ class Net(nn.Module):
         # compute gradient on previous tasks
         if len(self.observed_tasks) > 1:
             for tt in range(len(self.observed_tasks) - 1):
-                print("tt : ", tt)
                 self.zero_grad()
                 # fwd/bwd on the examples in the memory
                 past_task = self.observed_tasks[tt]

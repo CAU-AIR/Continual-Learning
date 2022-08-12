@@ -59,9 +59,4 @@ def confusion_matrix(result_t, result_a, fname=None):
     stats.append(bwt.mean())
     stats.append(fwt.mean())
 
-    print("result_a\n")
-    print(result_t)
-    print("result_a\n")
-    print(result_a)
-
     return stats
