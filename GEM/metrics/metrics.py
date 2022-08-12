@@ -29,7 +29,7 @@ def confusion_matrix(result_t, result_a, fname=None):
     result = result_a[changes]
 
     # acc[t] equals result[t,t]
-    acc = result.diag()
+    acc = result.diag() # diagonal
     fin = result[nt - 1]
     # bwt[t] equals result[T,t] - acc[t]
     bwt = result[nt - 1] - acc
@@ -58,5 +58,10 @@ def confusion_matrix(result_t, result_a, fname=None):
     stats.append(fin.mean())
     stats.append(bwt.mean())
     stats.append(fwt.mean())
+
+    print("result_a\n")
+    print(result_t)
+    print("result_a\n")
+    print(result_a)
 
     return stats
