@@ -10,14 +10,14 @@ import pickle
 import torch
 import os
 
-cifar_path = "cifar-100-python.tar.gz"
+cifar_path = "../../../Dataset/CIFAR100/cifar-100-python.tar.gz"
 # mnist_path = "mnist.npz"
 
 # URL from: https://www.cs.toronto.edu/~kriz/cifar.html
 if not os.path.exists(cifar_path):
-    subprocess.call("wget https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz", shell=True)
+    subprocess.call("wget https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz", shell=True, cwd="../../../Dataset/CIFAR100/")
 
-subprocess.call("tar xzfv cifar-100-python.tar.gz", shell=True)
+subprocess.call("tar xzfv cifar-100-python.tar.gz", shell=True, cwd="../../../Dataset/CIFAR100/")
 
 # URL from: https://github.com/fchollet/keras/blob/master/keras/datasets/mnist.py
 # if not os.path.exists(mnist_path):
@@ -28,15 +28,15 @@ def unpickle(file):
         dict = pickle.load(fo, encoding='bytes')
     return dict
 
-cifar100_train = unpickle('cifar-100-python/train')
-cifar100_test = unpickle('cifar-100-python/test')
+cifar100_train = unpickle('../../../Dataset/CIFAR100/cifar-100-python/train')
+cifar100_test = unpickle('../../../Dataset/CIFAR100/cifar-100-python/test')
 
 x_tr = torch.from_numpy(cifar100_train[b'data'])
 y_tr = torch.LongTensor(cifar100_train[b'fine_labels'])
 x_te = torch.from_numpy(cifar100_test[b'data'])
 y_te = torch.LongTensor(cifar100_test[b'fine_labels'])
 
-torch.save((x_tr, y_tr, x_te, y_te), 'cifar100.pt')
+torch.save((x_tr, y_tr, x_te, y_te), '../../../Dataset/CIFAR100/cifar100.pt')
 
 # f = np.load('mnist.npz')
 # x_tr = torch.from_numpy(f['x_train'])
