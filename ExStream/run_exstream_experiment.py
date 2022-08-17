@@ -54,7 +54,7 @@ def experiment(dataset, X_train, y_train, X_test, y_test, capacity):
 
 
 def main():
-    gpu = '2'  # which GPU to use for experiment
+    gpu = '0'  # which GPU to use for experiment
 
     data_path = '../Dataset/CUB/cub200_resnet'  # path to data
     save_path = './results'  # path to save results
