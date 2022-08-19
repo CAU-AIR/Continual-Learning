@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-export CUDA_VISIBLE_DEVICES=2
+# export CUDA_VISIBLE_DEVICES=2
 
-results="./results/cifar10"
+results="./results/cifar10_jetson2gb"
 CIFAR_10i="--n_layers 2 --n_hiddens 100 --data_path ../Dataset/CIFAR10/ --save_path $results --batch_size 10 --log_every 10 --samples_per_task 10000 --data_file disjoint_cifar10.pt   --tasks_to_preserve 5        --cuda yes "
 
 mkdir $results
