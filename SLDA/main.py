@@ -9,10 +9,6 @@
 # Website: avalanche.continualai.org                                           #
 ################################################################################
 
-"""
-This is a simple example on how to use the Deep SLDA strategy.
-"""
-
 import argparse
 import torch
 import warnings
