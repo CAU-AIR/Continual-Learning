@@ -24,7 +24,7 @@ from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.benchmarks.classic import SplitCIFAR10, SplitCIFAR100
 from avalanche.training.supervised.deep_slda import StreamingLDA
 from avalanche.models import SLDAResNetModel
-
+from avalanche.evaluation.metrics import ExperienceAccuracy, ExperienceLoss, ExperienceForgetting, ExperienceTime, EpochAccuracy
 
 def main(args):
     # Device config
@@ -42,12 +42,22 @@ def main(args):
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
     tensor_logger = TensorboardLogger("SLDA/logs/CIFAR10/" + date)
 
+    # eval_plugin = EvaluationPlugin(
+    #     loss_metrics(epoch=True, experience=True, stream=True),
+    #     accuracy_metrics(epoch=True, experience=True, stream=True),
+    #     forgetting_metrics(experience=True, stream=True),
+    #     loggers=[InteractiveLogger(), tensor_logger],
+    # )
+
+    interactive_logger = InteractiveLogger()
+    tensor_logger = TensorboardLogger("logs_Jetson_iCaRL_cifar100_" + date)
     eval_plugin = EvaluationPlugin(
-        loss_metrics(epoch=True, experience=True, stream=True),
-        accuracy_metrics(epoch=True, experience=True, stream=True),
-        forgetting_metrics(experience=True, stream=True),
-        loggers=[InteractiveLogger(), tensor_logger],
-    )
+        EpochAccuracy(),
+        ExperienceAccuracy(),
+        ExperienceLoss(),
+        ExperienceForgetting(),
+        ExperienceTime(),
+        loggers=[interactive_logger, tensor_logger])
 
     criterion = torch.nn.CrossEntropyLoss()
     model = SLDAResNetModel(
