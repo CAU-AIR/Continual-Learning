@@ -5,7 +5,10 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
+import dataloader
+import data_generator
 from models.IcarlNet import icarl_net
+from metric import AverageMeter, Logger
 
 parser = argparse.ArgumentParser()
 # General Settings
