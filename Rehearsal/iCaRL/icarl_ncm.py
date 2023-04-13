@@ -3,11 +3,13 @@ import argparse
 import numpy as np
 
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import dataloader
 import data_generator
-from models.IcarlNet import icarl_net
+from models import IcarlNet
 from metric import AverageMeter, Logger
 
 parser = argparse.ArgumentParser()
@@ -53,3 +55,15 @@ def main():
 
     # Create Model
     model_name = args.model_name
+    if 'iCaRL' in model_name:
+        model = IcarlNet.__dict__[args.model_name](args.num_classes)
+        model.to(args.device)
+
+    # Optimizer and Scheduler
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    criterion = nn.CrossEntropyLoss()
+
+    feature_size = model.input_dims
+
+if __name__ == '__main__':
+    main()

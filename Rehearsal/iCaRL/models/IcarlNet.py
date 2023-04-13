@@ -79,38 +79,38 @@ class IcarlNet(Module):
         super().__init__()
 
         self.is_train = True
-        input_dims = c
+        self.input_dims = c
         output_dims = 16
 
         first_conv = Sequential(
-            conv3x3(input_dims, output_dims, stride=(1, 1)),
+            conv3x3(self.input_dims, output_dims, stride=(1, 1)),
             batch_norm(16),
             ReLU(True),
         )
 
-        input_dims = output_dims
+        self.input_dims = output_dims
         output_dims = 16
 
         # first stack of residual blocks, output is 16 x 32 x 32
         layers_list = []
         for _ in range(n):
-            layers_list.append(ResidualBlock(input_dims))
+            layers_list.append(ResidualBlock(self.input_dims))
         first_block = Sequential(*layers_list)
 
-        input_dims = output_dims
+        self.input_dims = output_dims
         output_dims = 32
 
         # second stack of residual blocks, output is 32 x 16 x 16
-        layers_list = [ResidualBlock(input_dims, increase_dim=True)]
+        layers_list = [ResidualBlock(self.input_dims, increase_dim=True)]
         for _ in range(1, n):
             layers_list.append(ResidualBlock(output_dims))
         second_block = Sequential(*layers_list)
 
-        input_dims = output_dims
+        self.input_dims = output_dims
         output_dims = 64
 
         # third stack of residual blocks, output is 64 x 8 x 8
-        layers_list = [ResidualBlock(input_dims, increase_dim=True)]
+        layers_list = [ResidualBlock(self.input_dims, increase_dim=True)]
         for _ in range(1, n - 1):
             layers_list.append(ResidualBlock(output_dims))
         layers_list.append(ResidualBlock(output_dims, last=True))
@@ -126,10 +126,10 @@ class IcarlNet(Module):
             Flatten(),
         )
 
-        input_dims = output_dims
+        self.input_dims = output_dims
         output_dims = num_classes
 
-        self.classifier = Linear(input_dims, output_dims)
+        self.classifier = Linear(self.input_dims, output_dims)
 
     def forward(self, x):
         x = self.feature_extractor(x)  # Already flattened
@@ -137,7 +137,7 @@ class IcarlNet(Module):
         return x
 
 
-def icarl_net(num_classes: int, n=5, c=3) -> IcarlNet:
+def iCaRL(num_classes: int, n=5, c=3) -> IcarlNet:
     """Create :py:class:`IcarlNet` network, the ResNet used in
     ICarl.
     :param num_classes: number of classes, network output size
