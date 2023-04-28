@@ -135,6 +135,10 @@ class IcarlNet(Module):
         x = self.feature_extractor(x)  # Already flattened
         x = self.classifier(x)
         return x
+    
+    def features(self, x):
+        x = self.feature_extractor(x)
+        return x
 
 
 def iCaRL(num_classes: int, n=5, c=3) -> IcarlNet:
