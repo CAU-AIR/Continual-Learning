@@ -35,6 +35,7 @@ parser.add_argument('--num_classes', type=int, default=10)
 parser.add_argument('--classifier', type=str, default='NCM', choices=['FC', 'NCM'])
 # CL Settings
 parser.add_argument('--class_increment', type=int, default=1)
+parser.add_argument('--fixed_order', action='store_true')
 parser.add_argument('--memory', type=int, default=100)
 
 args = parser.parse_args()
@@ -103,9 +104,13 @@ def test(task, model, test_loader, classifier=None):
 
 def main():
     ## GPU Setup
-    device = 'cuda:' + args.device
-    args.device = torch.device(device)
-    torch.cuda.set_device(args.device)
+    if args.device == "mps":
+        device = args.device # M1 (MacBook)
+        args.device = torch.device(device)
+    else:
+        device = 'cuda:' + args.device # GPU
+        args.device = torch.device(device)
+        torch.cuda.set_device(args.device)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -147,8 +152,13 @@ def main():
     data_loader = dataloader.dataloader(args)
     last_test_acc = 0
 
+    fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+
     for idx in range(0, args.num_classes, args.class_increment):
-        task = [k for k in range(idx, idx+args.class_increment)]
+        if args.fixed_order:
+            task = fixed_class_order[idx:idx+args.class_increment]
+        else:
+            task = [k for k in range(idx, idx+args.class_increment)]
         print('\nTask : ', task)
 
         train_loader = data_loader.load(task)
