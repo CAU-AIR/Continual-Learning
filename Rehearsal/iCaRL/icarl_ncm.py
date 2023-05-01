@@ -133,7 +133,7 @@ def main():
 
     # Optimizer and Scheduler
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[49, 63], gamma=1.0 / 5.0)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,30,40,50], gamma=1.0 / 5.0)
     criterion = nn.CrossEntropyLoss()
 
     feature_size = model.input_dims
@@ -175,6 +175,8 @@ def main():
             if classifier_name == 'NCM' and epoch+1 != args.epoch:
                 classifier.update_mean(task)
 
+            scheduler.step()
+
         logger.result('Train Accuracy', best_acc, log_t)
 
         test_acc = test(idx, model, test_loader, classifier)
@@ -182,7 +184,6 @@ def main():
         last_test_acc = test_acc
 
         log_t += 1
-        scheduler.step()
 
     logger.result('Final Test Accuracy', last_test_acc, 1)
     print("\n\nFinal Test Accuracy : %.2f%%" % last_test_acc)
