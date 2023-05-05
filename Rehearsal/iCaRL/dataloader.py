@@ -34,7 +34,7 @@ def get_pixel_mean(dataset):
     return result
 
 
-def get_transform(dataset_name='CIFAR100', train=True, mean=False):
+def get_transform(dataset_name='CIFAR100', train=True):
     if 'CIFAR' in dataset_name:
         if train:
             transform = transforms.Compose(
