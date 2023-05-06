@@ -102,6 +102,12 @@ def test(task, model, test_loader, classifier=None):
 
     return acc.avg
 
+def icarl_loss(t, c_loss, d_los, output_old=None):
+    # c_loss : classification loss
+    # d_loss : distillation loss
+    pass
+
+
 def main():
     ## GPU Setup
     if args.device == "mps":
@@ -152,6 +158,7 @@ def main():
     data_loader = dataloader.dataloader(args)
     last_test_acc = 0
 
+    task_num = 0
     fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
 
     for idx in range(0, args.num_classes, args.class_increment):
@@ -159,10 +166,11 @@ def main():
             task = fixed_class_order[idx:idx+args.class_increment]
         else:
             task = [k for k in range(idx, idx+args.class_increment)]
+        print('\nTask Index : ', task_num)
         print('\nTask : ', task)
 
-        train_loader = data_loader.load(task)
-        test_loader = data_loader.load(task, train=False)
+        train_loader = data_loader.load(task, task_num)
+        test_loader = data_loader.load(task, task_num, train=False)
 
         best_acc = 0
         for epoch in range(args.epoch):
@@ -179,10 +187,11 @@ def main():
 
         logger.result('Train Accuracy', best_acc, log_t)
 
-        test_acc = test(idx, model, test_loader, classifier)
+        test_acc = test(task_num, model, test_loader, classifier)
         logger.result('Test Accuracy', test_acc, log_t)
         last_test_acc = test_acc
 
+        task_num += 1
         log_t += 1
 
     logger.result('Final Test Accuracy', last_test_acc, 1)

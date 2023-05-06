@@ -56,11 +56,10 @@ def get_transform(dataset_name='CIFAR100', train=True):
     return transform
 
 class dataset(Dataset):
-    def __init__(self, args, task, train=True, buffer=None):
+    def __init__(self, args, task, idx=0, train=True, buffer=None):
         self.args = args
         self.train = train
-        self.mean = True if train else False
-        self.transform = get_transform(args.dataset, self.train, self.mean)
+        self.transform = get_transform(args.dataset, self.train)
         self.root = os.path.join(args.root, args.dataset)
 
         if self.train:
@@ -80,6 +79,9 @@ class dataset(Dataset):
             self.train_x = np.array(self.train_x)
             self.train_y = np.array(self.train_y)
             self.pixel_mean = get_pixel_mean(self.train_x)
+
+            if buffer is not None:
+                smaple_per_class = args.memory // (idx + 1)
 
         else:
             # load test data & label
@@ -128,9 +130,9 @@ class dataloader():
         self.buffer_x = []
         self.buffer_y = []
 
-    def load(self, task, train=True):
+    def load(self, task, idx, train=True):
         if train:
-            train_dataset = dataset(self.args, task, train, buffer=(self.buffer_x, self.buffer_y))
+            train_dataset = dataset(self.args, task, idx, train, buffer=(self.buffer_x, self.buffer_y))
             train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers)
 
             # self.buffer_x = train_dataset.buffer_x
@@ -139,7 +141,7 @@ class dataloader():
             return train_loader
 
         else:
-            test_dataset = dataset(self.args, task, train)
+            test_dataset = dataset(self.args, task, idx, train)
             test_loader = DataLoader(test_dataset, batch_size=self.args.test_size, shuffle=False, num_workers=self.args.num_workers)
 
             return test_loader
