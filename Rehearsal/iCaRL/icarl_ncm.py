@@ -31,6 +31,7 @@ parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--model_name', type=str, default='iCaRL', choices=['iCaRL', 'ImageNet_ResNet18'])
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
+parser.add_argument('--lamb', type=int, default=1)
 parser.add_argument('--num_classes', type=int, default=10)
 parser.add_argument('--classifier', type=str, default='NCM', choices=['FC', 'NCM'])
 # CL Settings
@@ -102,10 +103,20 @@ def test(task, model, test_loader, classifier=None):
 
     return acc.avg
 
-def icarl_loss(t, c_loss, d_los, output_old=None):
+def icarl_loss(outputs, targets, output_old=None, old_classes = []):
     # c_loss : classification loss
     # d_loss : distillation loss
-    pass
+    predictions = torch.sigmoid(outputs)
+
+    one_hot = torch.zeros(targets.shape[0], outputs.shape[1], dtype=torch.float, device=outputs.device,)
+    one_hot[range(len(targets)), targets.long()] = 1
+    
+    if output_old is not None:
+        old_predictions = torch.sigmoid(output_old)
+        one_hot[:, old_classes] = old_predictions[:, old_classes]
+        output_old = None
+
+    return nn.BCELoss(predictions, one_hot)
 
 
 def main():
@@ -140,7 +151,7 @@ def main():
     # Optimizer and Scheduler
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,30,40,50], gamma=1.0 / 5.0)
-    criterion = nn.CrossEntropyLoss()
+    criterion = icarl_loss()
 
     feature_size = model.input_dims
 

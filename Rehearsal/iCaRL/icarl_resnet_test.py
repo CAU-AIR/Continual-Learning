@@ -17,6 +17,7 @@ from torch.nn.init import zeros_, kaiming_normal_
 from torch.nn.modules.flatten import Flatten
 import torch.nn.functional as F
 
+from models.NCM import NearestClassMean
 
 class IdentityShortcut(Module):
     def __init__(self, transform_function: Callable[[Tensor], Tensor]):
@@ -113,7 +114,7 @@ class ResidualBlock(Module):
 
 
 class IcarlNet(Module):
-    def __init__(self, num_classes: int, n=5, c=3):
+    def __init__(self, num_classes: int, n=5, c=3, device='cpu'):
         super().__init__()
 
         self.is_train = True
@@ -167,22 +168,23 @@ class IcarlNet(Module):
         input_dims = output_dims
         output_dims = num_classes
 
-        self.classifier = Linear(input_dims, output_dims)
+        # self.classifier = Linear(input_dims, output_dims)
+        self.classifier = NearestClassMean(input_dims, output_dims, device=device)
 
-    def forward(self, x):
+    def forward(self, x, y):
         x = self.feature_extractor(x)  # Already flattened
-        x = self.classifier(x)
+        x = self.classifier.train_(x, y)
         return x
 
 
-def make_icarl_net(num_classes: int, n=5, c=3) -> IcarlNet:
+def make_icarl_net(num_classes: int, n=5, c=3, device='cuda:0') -> IcarlNet:
     """Create :py:class:`IcarlNet` network, the ResNet used in
     ICarl.
     :param num_classes: number of classes, network output size
     :param n: depth of each residual blocks stack
     :param c: number of input channels
     """
-    return IcarlNet(num_classes, n=n, c=c)
+    return IcarlNet(num_classes, n=n, c=c, device=device)
 
 
 def initialize_icarl_net(m: Module):

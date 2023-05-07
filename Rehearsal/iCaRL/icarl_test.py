@@ -64,7 +64,16 @@ def icarl_cifar100_augment_data(img):
 
 
 def run_experiment(config):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = "mps"
+    # device = "0"
+
+    if device == "mps": # Macbook
+        device = torch.device(device)
+    else:
+        device = 'cuda:' + device # GPU
+        device = torch.device(device)
+
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     torch.manual_seed(config.seed)
     torch.cuda.manual_seed(config.seed)
@@ -75,7 +84,7 @@ def run_experiment(config):
 
     per_pixel_mean = get_dataset_per_pixel_mean(
         CIFAR100(
-            default_dataset_location("cifar100"),
+            default_dataset_location("/data/CIFAR100"),
             train=True,
             download=True,
             transform=transforms.Compose([transforms.ToTensor()]),
@@ -105,12 +114,12 @@ def run_experiment(config):
     )
 
     train_set = CIFAR100(
-        default_dataset_location("cifar100"),
+        default_dataset_location("data/CIFAR100"),
         train=True,
         download=True,
     )
     test_set = CIFAR100(
-        default_dataset_location("cifar100"),
+        default_dataset_location("data/CIFAR100"),
         train=False,
         download=True,
     )
@@ -143,7 +152,7 @@ def run_experiment(config):
         loggers=[InteractiveLogger()],
     )
 
-    model: IcarlNet = make_icarl_net(num_classes=100)
+    model: IcarlNet = make_icarl_net(num_classes=100, device=device)
     model.apply(initialize_icarl_net)
 
     optim = SGD(
@@ -173,8 +182,8 @@ def run_experiment(config):
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
-        strategy.train(exp, num_workers=4)
-        strategy.eval(eval_exps, num_workers=4)
+        strategy.train(exp, num_workers=0)
+        strategy.eval(eval_exps, num_workers=0)
 
 
 class Config(dict):
@@ -199,108 +208,7 @@ if __name__ == "__main__":
     config.lr_milestones = [49, 63]
     config.lr_factor = 5.0
     config.wght_decay = 0.00001
-    config.fixed_class_order = [
-        87,
-        0,
-        52,
-        58,
-        44,
-        91,
-        68,
-        97,
-        51,
-        15,
-        94,
-        92,
-        10,
-        72,
-        49,
-        78,
-        61,
-        14,
-        8,
-        86,
-        84,
-        96,
-        18,
-        24,
-        32,
-        45,
-        88,
-        11,
-        4,
-        67,
-        69,
-        66,
-        77,
-        47,
-        79,
-        93,
-        29,
-        50,
-        57,
-        83,
-        17,
-        81,
-        41,
-        12,
-        37,
-        59,
-        25,
-        20,
-        80,
-        73,
-        1,
-        28,
-        6,
-        46,
-        62,
-        82,
-        53,
-        9,
-        31,
-        75,
-        38,
-        63,
-        33,
-        74,
-        27,
-        22,
-        36,
-        3,
-        16,
-        21,
-        60,
-        19,
-        70,
-        90,
-        89,
-        43,
-        5,
-        42,
-        65,
-        76,
-        40,
-        30,
-        23,
-        85,
-        2,
-        95,
-        56,
-        48,
-        71,
-        64,
-        98,
-        13,
-        99,
-        7,
-        34,
-        55,
-        54,
-        26,
-        35,
-        39,
-    ]
+    config.fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
     config.seed = 2222
 
     run_experiment(config)
