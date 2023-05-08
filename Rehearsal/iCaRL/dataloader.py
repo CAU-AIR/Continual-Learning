@@ -112,13 +112,13 @@ class dataset(Dataset):
         if 'CIFAR' in self.args.dataset:
             if self.train:
                 img, target = self.train_x[index], self.train_y[index]
-                img = (img - self.pixel_mean).astype(np.uint8)
+                # img = (img - self.pixel_mean).astype(np.uint8)
                 img = Image.fromarray(img)
                 img = self.transform(img)
                 return img, target
             else:
                 img, target = self.test_x[index], self.test_y[index]
-                img = (img - self.pixel_mean).astype(np.uint8)
+                # img = (img - self.pixel_mean).astype(np.uint8)
                 img = Image.fromarray(img)
                 img = self.transform(img)            
                 return img, target

@@ -13,8 +13,9 @@ import torch.backends.cudnn as cudnn
 import dataloader
 import data_generator
 from models import IcarlNet, NCM
+from icarl import ICaRLPlugin
 from utils.losses import ICaRLLossPlugin
-from metric import Logger, AverageMeter, accuracy
+from utils.util import Logger, AverageMeter, accuracy
 
 parser = argparse.ArgumentParser()
 # General Settings
@@ -93,7 +94,7 @@ def test(task, model, test_loader, classifier=None):
 
             if args.classifier == 'NCM':
                 features = model.features(x)
-                logits = classifier.evaluate_(features)
+                logits = classifier(features)
             else:
                 logits = model(x) # FC
 
@@ -142,12 +143,12 @@ def main():
     criterion = ICaRLLossPlugin(device)
 
     feature_size = model.input_dims
-
     classifier_name = args.classifier
+    
     if classifier_name == 'NCM':
-        classifier = NCM.NearestClassMean(feature_size, args.num_classes, device=args.device)
+        train_classifier = NCM.NearestClassMean(feature_size, args.num_classes, device=args.device)
     else:
-        classifier=None
+        train_classifier=None
 
     # For plotting the logs
     args.log_path = os.path.dirname(os.path.realpath(__file__))
@@ -159,6 +160,8 @@ def main():
 
     task_num = 0
     fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+
+    icarl = ICaRLPlugin(args, fixed_class_order, model, device)
 
     for idx in range(0, args.num_classes, args.class_increment):
         if args.fixed_order:
@@ -173,20 +176,23 @@ def main():
 
         best_acc = 0
         for epoch in range(args.epoch):
-            loss, train_acc = train(task_num, epoch, model, train_loader, criterion, optimizer, classifier)
+            icarl.before_training_exp(idx)
+            icarl.before_forward(feature_size)
+
+            loss, train_acc = train(task_num, epoch, model, train_loader, criterion, optimizer, train_classifier)
 
             if train_acc > best_acc:
                 best_acc = train_acc
                 logger.result('Train Epoch Loss/Labeled', loss, epoch)
 
-            if classifier_name == 'NCM' and epoch+1 != args.epoch:
-                classifier.update_mean(task)
+            # if classifier_name == 'NCM' and epoch+1 != args.epoch:
+            icarl.after_training_exp(train_loader)
 
             scheduler.step()
 
         logger.result('Train Accuracy', best_acc, log_t)
 
-        test_acc = test(task_num, model, test_loader, classifier)
+        test_acc = test(task_num, model, test_loader, icarl)
         logger.result('Test Accuracy', test_acc, log_t)
         last_test_acc = test_acc
 
