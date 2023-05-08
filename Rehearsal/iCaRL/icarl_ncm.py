@@ -12,7 +12,7 @@ import torch.backends.cudnn as cudnn
 
 import dataloader
 import data_generator
-from models import IcarlNet, NCM, initialize_icarl_net
+from models import IcarlNet, NCM
 from utils.losses import ICaRLLossPlugin
 from metric import Logger, AverageMeter, accuracy
 
@@ -133,13 +133,13 @@ def main():
     model_name = args.model_name
     if 'iCaRL' in model_name:
         model = IcarlNet.__dict__[args.model_name](args.num_classes)
-        model.apply(initialize_icarl_net)
+        model.apply(IcarlNet.initialize_icarl_net)
         model.to(args.device)
 
     # Optimizer and Scheduler
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,30,40,50], gamma=1.0 / 5.0)
-    criterion = ICaRLLossPlugin()
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[49, 63], gamma=1.0 / 5.0)
+    criterion = ICaRLLossPlugin(device)
 
     feature_size = model.input_dims
 

@@ -55,7 +55,7 @@ class ICaRLLossPlugin():
 
         self.old_model.load_state_dict(model.state_dict())
 
-        self.old_classes += np.unique(targets).tolist()
+        self.old_classes += np.unique(targets.cpu().numpy()).tolist()
 
 
 __all__ = ["ICaRLLossPlugin"]
