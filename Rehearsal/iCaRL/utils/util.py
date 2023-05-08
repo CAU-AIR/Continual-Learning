@@ -59,12 +59,16 @@ class AverageMeter (object):
         self.count += n
         self.avg = self.sum / self.count
 
-def accuracy(output, target, topk=(1,)):
+def accuracy(output, target, topk=(1,), test=False):
     with torch.no_grad():
         maxk = max(topk)
         batch_size = target.size(0)
 
-        _, pred = output.topk(maxk, 1, True, True)
+        if test:
+            pred = torch.argmin(output, dim=1)[None].permute(1,0)
+        else:
+            _, pred = output.topk(maxk, 1, True, True)
+
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
 

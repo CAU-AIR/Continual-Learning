@@ -15,25 +15,6 @@ dataset_stats = {
                  'size' : 32}
 }
 
-def get_pixel_mean(dataset):
-    result = None
-    patterns_count = 0
-
-    for img_pattern in dataset:
-        if result is None:
-            result = img_pattern
-
-        result += img_pattern
-        patterns_count += 1
-
-    if result is None:
-        result = torch.empty(0, dtype=torch.float)
-    else:
-        result = result / patterns_count
-    
-    return result
-
-
 def get_transform(dataset_name='CIFAR100', train=True):
     if 'CIFAR' in dataset_name:
         if train:
@@ -56,7 +37,7 @@ def get_transform(dataset_name='CIFAR100', train=True):
     return transform
 
 class dataset(Dataset):
-    def __init__(self, args, task, idx=0, train=True, buffer=None):
+    def __init__(self, args, task, idx=0, train=True):
         self.args = args
         self.train = train
         self.transform = get_transform(args.dataset, self.train)
@@ -78,10 +59,6 @@ class dataset(Dataset):
 
             self.train_x = np.array(self.train_x)
             self.train_y = np.array(self.train_y)
-            self.pixel_mean = get_pixel_mean(self.train_x)
-
-            if buffer is not None:
-                smaple_per_class = args.memory // (idx + 1)
 
         else:
             # load test data & label
@@ -100,7 +77,6 @@ class dataset(Dataset):
 
             self.test_x = np.array(self.test_x)
             self.test_y = np.array(self.test_y)
-            self.pixel_mean = get_pixel_mean(self.test_x)
 
     def __len__(self):
         if self.train:
@@ -112,31 +88,23 @@ class dataset(Dataset):
         if 'CIFAR' in self.args.dataset:
             if self.train:
                 img, target = self.train_x[index], self.train_y[index]
-                # img = (img - self.pixel_mean).astype(np.uint8)
                 img = Image.fromarray(img)
                 img = self.transform(img)
                 return img, target
             else:
                 img, target = self.test_x[index], self.test_y[index]
-                # img = (img - self.pixel_mean).astype(np.uint8)
                 img = Image.fromarray(img)
                 img = self.transform(img)            
                 return img, target
 
-
 class dataloader():
     def __init__(self, args):
         self.args = args
-        self.buffer_x = []
-        self.buffer_y = []
 
     def load(self, task, idx, train=True):
         if train:
-            train_dataset = dataset(self.args, task, idx, train, buffer=(self.buffer_x, self.buffer_y))
+            train_dataset = dataset(self.args, task, idx, train)
             train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers)
-
-            # self.buffer_x = train_dataset.buffer_x
-            # self.buffer_y = train_dataset.buffer_y
 
             return train_loader
 
@@ -145,3 +113,18 @@ class dataloader():
             test_loader = DataLoader(test_dataset, batch_size=self.args.test_size, shuffle=False, num_workers=self.args.num_workers)
 
             return test_loader
+        
+class memory_dataset(Dataset):
+    def __init__(self, data, targets, transform=None):
+        self.data = data
+        self.targets = targets
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        x = self.data[idx]
+        y = self.targets[idx]
+        
+        return x, y

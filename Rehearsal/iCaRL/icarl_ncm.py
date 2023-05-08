@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from torch.utils.data import DataLoader
 
 import dataloader
 import data_generator
@@ -43,10 +44,16 @@ parser.add_argument('--memory', type=int, default=100)
 
 args = parser.parse_args()
 
-def train(task, epoch, model, train_loader, criterion, optimizer, classifier=None):
+def train(task, epoch, model, strategy, train_loader, criterion, optimizer, classifier=None):
     acc = AverageMeter()
     losses = AverageMeter()
     num_iter = math.ceil(len(train_loader.dataset) / args.batch_size)
+
+    if task > 0:
+        memory_transform = dataloader.get_transform(args.dataset)
+        memory_dataset = dataloader.memory_dataset(strategy.x_memory, strategy.y_memory, memory_transform)
+        memory_loader = DataLoader(memory_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        memory_iter = iter(memory_loader)
 
     model.train()
     for batch_idx, (x, y) in enumerate(train_loader):
@@ -54,6 +61,12 @@ def train(task, epoch, model, train_loader, criterion, optimizer, classifier=Non
         x, y = x.to(args.device).float(), y.to(args.device)
 
         if task > 0:
+            try:
+                x_memory, y_memory = next(memory_iter)
+                x = torch.cat([x, x_memory])
+                y = torch.cat([y, y_memory.to(args.device)])
+            except StopIteration:
+                pass
             criterion.before_forward(x)
 
         if args.classifier == 'NCM':
@@ -96,9 +109,10 @@ def test(task, model, test_loader, classifier=None):
                 features = model.features(x)
                 logits = classifier(features)
             else:
-                logits = model(x) # FC
+                features = model.features(x)
+                logits = classifier(features)
 
-            acc1 = accuracy(logits, y)
+            acc1 = accuracy(logits, y, test=True)
             acc.update(acc1[0], x.size(0))
 
             sys.stdout.write('\r')
@@ -150,6 +164,8 @@ def main():
     else:
         train_classifier=None
 
+    icarl = ICaRLPlugin(args, model, feature_size, device)
+
     # For plotting the logs
     args.log_path = os.path.dirname(os.path.realpath(__file__))
     logger = Logger(args.log_path + '/logs/' + args.dataset + '/' + args.device_name, args.classifier)
@@ -161,7 +177,6 @@ def main():
     task_num = 0
     fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
 
-    icarl = ICaRLPlugin(args, fixed_class_order, model, device)
 
     for idx in range(0, args.num_classes, args.class_increment):
         if args.fixed_order:
@@ -170,16 +185,14 @@ def main():
             task = [k for k in range(idx, idx+args.class_increment)]
         print('\nTask Index : ', task_num)
         print('\nTask : ', task)
+        icarl.observed_classes.extend(task)
 
         train_loader = data_loader.load(task, task_num)
         test_loader = data_loader.load(task, task_num, train=False)
 
         best_acc = 0
         for epoch in range(args.epoch):
-            icarl.before_training_exp(idx)
-            icarl.before_forward(feature_size)
-
-            loss, train_acc = train(task_num, epoch, model, train_loader, criterion, optimizer, train_classifier)
+            loss, train_acc = train(task_num, epoch, model, icarl, train_loader, criterion, optimizer, train_classifier)
 
             if train_acc > best_acc:
                 best_acc = train_acc
