@@ -12,7 +12,8 @@ import torch.backends.cudnn as cudnn
 
 import dataloader
 import data_generator
-from models import IcarlNet, NCM
+from models import IcarlNet, NCM, initialize_icarl_net
+from utils.losses import ICaRLLossPlugin
 from metric import Logger, AverageMeter, accuracy
 
 parser = argparse.ArgumentParser()
@@ -41,17 +42,18 @@ parser.add_argument('--memory', type=int, default=100)
 
 args = parser.parse_args()
 
-def train(epoch, model, train_loader, criterion, optimizer, classifier=None):
-    model.train()
-
+def train(task, epoch, model, train_loader, criterion, optimizer, classifier=None):
     acc = AverageMeter()
     losses = AverageMeter()
-
     num_iter = math.ceil(len(train_loader.dataset) / args.batch_size)
 
+    model.train()
     for batch_idx, (x, y) in enumerate(train_loader):
         y = y.type(torch.LongTensor)
         x, y = x.to(args.device).float(), y.to(args.device)
+
+        if task > 0:
+            criterion.before_forward(x)
 
         if args.classifier == 'NCM':
             features = model.features(x)
@@ -75,8 +77,9 @@ def train(epoch, model, train_loader, criterion, optimizer, classifier=None):
         sys.stdout.write('\r')
         sys.stdout.write('%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t loss: %.2f Accuracy: %.2f' % (args.dataset, epoch+1, args.epoch, batch_idx+1, num_iter, loss, acc.avg))
         sys.stdout.flush()
+    
+        criterion.after_training_exp(model, y)
 
-    # return loss.item(), acc.avg*100
     return loss.item(), acc.avg
 
 def test(task, model, test_loader, classifier=None):
@@ -102,22 +105,6 @@ def test(task, model, test_loader, classifier=None):
             sys.stdout.flush()
 
     return acc.avg
-
-def icarl_loss(outputs, targets, output_old=None, old_classes = []):
-    # c_loss : classification loss
-    # d_loss : distillation loss
-    predictions = torch.sigmoid(outputs)
-
-    one_hot = torch.zeros(targets.shape[0], outputs.shape[1], dtype=torch.float, device=outputs.device,)
-    one_hot[range(len(targets)), targets.long()] = 1
-    
-    if output_old is not None:
-        old_predictions = torch.sigmoid(output_old)
-        one_hot[:, old_classes] = old_predictions[:, old_classes]
-        output_old = None
-
-    return nn.BCELoss(predictions, one_hot)
-
 
 def main():
     ## GPU Setup
@@ -146,12 +133,13 @@ def main():
     model_name = args.model_name
     if 'iCaRL' in model_name:
         model = IcarlNet.__dict__[args.model_name](args.num_classes)
+        model.apply(initialize_icarl_net)
         model.to(args.device)
 
     # Optimizer and Scheduler
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,30,40,50], gamma=1.0 / 5.0)
-    criterion = icarl_loss()
+    criterion = ICaRLLossPlugin()
 
     feature_size = model.input_dims
 
@@ -185,7 +173,7 @@ def main():
 
         best_acc = 0
         for epoch in range(args.epoch):
-            loss, train_acc = train(epoch, model, train_loader, criterion, optimizer, classifier)
+            loss, train_acc = train(task_num, epoch, model, train_loader, criterion, optimizer, classifier)
 
             if train_acc > best_acc:
                 best_acc = train_acc

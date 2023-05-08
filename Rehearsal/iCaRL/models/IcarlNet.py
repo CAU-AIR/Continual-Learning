@@ -11,6 +11,7 @@ from torch.nn import (
     Identity,
     AdaptiveAvgPool2d,
     Linear,
+    init,
 )
 from torch import Tensor
 from torch.nn.modules.flatten import Flatten
@@ -149,3 +150,19 @@ def iCaRL(num_classes: int, n=5, c=3) -> IcarlNet:
     :param c: number of input channels
     """
     return IcarlNet(num_classes, n=n, c=c)
+
+def initialize_icarl_net(m: Module):
+    """Initialize the input network based on `kaiming_normal`
+    with `mode=fan_in` for `Conv2d` and `Linear` blocks.
+    Biases are initialized to zero.
+    :param m: input network (should be IcarlNet).
+    """
+    if isinstance(m, Conv2d):
+        init.kaiming_normal_(m.weight.data, mode="fan_in", nonlinearity="relu")
+        if m.bias is not None:
+            init.zeros_(m.bias.data)
+
+    elif isinstance(m, Linear):
+        init.kaiming_normal_(m.weight.data, mode="fan_in", nonlinearity="sigmoid")
+        if m.bias is not None:
+            init.zeros_(m.bias.data)
