@@ -162,6 +162,7 @@ def main():
     if classifier_name == 'NCM':
         train_classifier = NCM.NearestClassMean(feature_size, args.num_classes, device=args.device)
     else:
+        print(classifier_name)
         train_classifier=None
 
     icarl = ICaRLPlugin(args, model, feature_size, device)
