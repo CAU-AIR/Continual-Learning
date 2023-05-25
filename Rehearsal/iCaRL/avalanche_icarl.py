@@ -71,9 +71,13 @@ def run_experiment(config):
     torch.backends.cudnn.enabled = False
     torch.backends.cudnn.deterministic = True
 
+
+
+
+
     per_pixel_mean = get_dataset_per_pixel_mean(
         CIFAR100(
-            expanduser("~") + "/data/cifar100/",
+            "data/cifar100/",
             train=True,
             download=True,
             transform=transforms.Compose([transforms.ToTensor()]),
@@ -103,12 +107,12 @@ def run_experiment(config):
     )
 
     train_set = CIFAR100(
-        expanduser("~") + "/data/cifar100/",
+        "data/cifar100/",
         train=True,
         download=True,
     )
     test_set = CIFAR100(
-        expanduser("~") + "/data/cifar100/",
+        "data/cifar100/",
         train=False,
         download=True,
     )
@@ -189,10 +193,10 @@ class Config(dict):
 if __name__ == "__main__":
     config = Config()
 
-    config.batch_size = 128
+    config.batch_size = 1
     config.nb_exp = 10
     config.memory_size = 2000
-    config.epochs = 70
+    config.epochs = 1
     config.lr_base = 2.0
     config.lr_milestones = [49, 63]
     config.lr_factor = 5.0
