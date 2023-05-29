@@ -15,7 +15,7 @@ from avalanche.logging.interactive_logging import InteractiveLogger
 import random
 import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
-from avalanche.training.supervised import GSS_greedy
+from train.supervised.strategy_wrappers import MIR
 
 
 def run_experiment(config):
@@ -99,13 +99,12 @@ def run_experiment(config):
     )
     criterion = torch.nn.CrossEntropyLoss()
 
-    strategy = GSS_greedy(
+    strategy = MIR(
         model = model,
         optimizer = optim,
         criterion = criterion,
         mem_size = config.memory_size,
-        mem_strength = 10,
-        input_size = [3, 32, 32],
+        subsample=50,
         train_mb_size=config.batch_size,
         train_epochs=config.epochs,
         eval_mb_size=config.batch_size,
