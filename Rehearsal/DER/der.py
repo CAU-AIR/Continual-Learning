@@ -1,35 +1,21 @@
-from collections import defaultdict
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    SupportsInt,
-    Union,
-)
+import copy
+from typing import Callable, List, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss, Module
 from torch.optim import Optimizer
 
-from der_utils.data import make_avalanche_dataset
-
-from der_utils.data import AvalancheDataset
+from der_utils.data import AvalancheDataset, make_avalanche_dataset
 from der_utils.data_attribute import TensorDataAttribute
-
 from avalanche.core import SupervisedPlugin
-from avalanche.training.plugins.evaluation import (
-    EvaluationPlugin,
-    default_evaluator,
-)
-from avalanche.training.storage_policy import (
-    BalancedExemplarsBuffer,
-    ReservoirSamplingBuffer,
-)
+from avalanche.models.utils import avalanche_forward
+from avalanche.training.plugins.evaluation import default_evaluator
+from avalanche.training.storage_policy import (BalancedExemplarsBuffer,
+                                               ReservoirSamplingBuffer)
 from avalanche.training.templates import SupervisedTemplate
+import torch.nn as nn
 
 
 @torch.no_grad()
@@ -64,7 +50,7 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
         self,
         max_size: int,
         adaptive_size: bool = True,
-        total_num_classes: Optional[int] = None,
+        total_num_classes: int = None,
     ):
         """Init.
 
@@ -76,18 +62,17 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
         :param transforms: transformation to be applied to the buffer
         """
         if not adaptive_size:
-            assert total_num_classes is not None and total_num_classes > 0, \
-                "When fixed exp mem size, total_num_classes should be > 0."
+            assert (
+                total_num_classes > 0
+            ), """When fixed exp mem size, total_num_classes should be > 0."""
 
         super().__init__(max_size, adaptive_size, total_num_classes)
         self.adaptive_size = adaptive_size
         self.total_num_classes = total_num_classes
-        self.seen_classes: Set[int] = set()
+        self.seen_classes = set()
 
     def update(self, strategy: "SupervisedTemplate", **kwargs):
-        assert strategy.experience is not None
-        new_data: AvalancheDataset = strategy.experience.dataset
-
+        new_data = strategy.experience.dataset
         logits = compute_dataset_logits(
             new_data.eval(), 
             strategy.model,
@@ -101,12 +86,10 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
             ],
         )
         # Get sample idxs per class
-        cl_idxs: Dict[int, List[int]] = defaultdict(list)
-        targets: Sequence[SupportsInt] = getattr(new_data, 'targets')
-        for idx, target in enumerate(targets):
-            # Conversion to int may fix issues when target
-            # is a single-element torch.tensor
-            target = int(target)
+        cl_idxs = {}
+        for idx, target in enumerate(new_data.targets):
+            if target not in cl_idxs:
+                cl_idxs[target] = []
             cl_idxs[target].append(idx)
 
         # Make AvalancheSubset per class
@@ -155,18 +138,15 @@ class DER(SupervisedTemplate):
         optimizer: Optimizer,
         criterion=CrossEntropyLoss(),
         mem_size: int = 200,
-        batch_size_mem: Optional[int] = None,
+        batch_size_mem: int = None,
         alpha: float = 0.1,
         beta: float = 0.5,
         train_mb_size: int = 1,
         train_epochs: int = 1,
         eval_mb_size: Optional[int] = 1,
-        device: Union[str, torch.device] = "cpu",
+        device="cpu",
         plugins: Optional[List[SupervisedPlugin]] = None,
-        evaluator: Union[
-            EvaluationPlugin,
-            Callable[[], EvaluationPlugin]
-        ] = default_evaluator,
+        evaluator=None,
         eval_every=-1,
         peval_mode="epoch",
     ):
@@ -279,7 +259,7 @@ class DER(SupervisedTemplate):
             self._before_training_iteration(**kwargs)
 
             self.optimizer.zero_grad()
-            self.loss = self._make_empty_loss()
+            self.loss = 0
 
             # Forward
             self._before_forward(**kwargs)
