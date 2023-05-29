@@ -130,7 +130,7 @@ class Config(dict):
 if __name__ == "__main__":
     config = Config()
 
-    config.batch_size = 1
+    config.batch_size = 8
     config.nb_exp = 10
     config.memory_size = 2000
     config.epochs = 1
