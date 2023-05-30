@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     config.batch_size = 1
     config.nb_exp = 10
-    config.memory_size = 2000
+    config.memory_size = 100
     config.epochs = 1
     config.lr_base = 0.01
     config.lr_milestones = [49, 63]
