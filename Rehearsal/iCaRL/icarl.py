@@ -19,13 +19,13 @@ class ICaRLPlugin(nn.Module):
 
         self.x_memory = []
         self.y_memory = []
-        self.observed_classes = []
+        self.observed_classes = 0
 
     def after_training_exp(self, train_loader):
         self.model.eval()
 
         self.compute_class_means(train_loader)
-        self.exemplars_per_class = self.memory_size // len(self.observed_classes)
+        self.exemplars_per_class = self.memory_size // self.observed_classes
         if len(self.x_memory) > 0: self.reduce_exemplar_set()
         self.construct_exemplar_set(train_loader)
 

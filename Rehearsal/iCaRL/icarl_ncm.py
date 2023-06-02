@@ -62,8 +62,11 @@ def train(task, epoch, model, strategy, train_loader, criterion, optimizer, clas
 
         if task > 0:
             try:
+                print('\n', x.size())
                 x_memory, y_memory = next(memory_iter)
+                print(x_memory.size())
                 x = torch.cat([x, x_memory])
+                print(x.size())
                 y = torch.cat([y, y_memory.to(args.device)])
             except StopIteration:
                 pass
@@ -185,7 +188,7 @@ def main():
             task = [k for k in range(idx, idx+args.class_increment)]
         print('\nTask Index : ', task_num)
         print('\nTask : ', task)
-        icarl.observed_classes.extend(task)
+        icarl.observed_classes = task_num + 1
 
         train_loader = data_loader.load(task, task_num)
         test_loader = data_loader.load(task, task_num, train=False)
