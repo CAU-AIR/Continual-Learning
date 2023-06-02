@@ -57,7 +57,7 @@ def train(task, epoch, model, strategy, train_loader, criterion, optimizer, clas
 
     model.train()
     for batch_idx, (x, y) in enumerate(train_loader):
-        y = y.type(torch.LongTensor)
+        # y = y.type(torch.LongTensor)
         x, y = x.to(args.device).float(), y.to(args.device)
 
         if task > 0:
@@ -70,7 +70,7 @@ def train(task, epoch, model, strategy, train_loader, criterion, optimizer, clas
                 y = torch.cat([y, y_memory.to(args.device)])
             except StopIteration:
                 pass
-            criterion.before_forward(x)
+            criterion.before_forward(x) # set old model logits
 
         if args.classifier == 'NCM':
             features = model.features(x)
@@ -163,8 +163,10 @@ def main():
     classifier_name = args.classifier
     
     if classifier_name == 'NCM':
+        print('classifier : ', classifier_name)
         train_classifier = NCM.NearestClassMean(feature_size, args.num_classes, device=args.device)
     else:
+        print('classifier : ', classifier_name)
         train_classifier=None
 
     icarl = ICaRLPlugin(args, model, feature_size, device)
@@ -190,8 +192,8 @@ def main():
         print('\nTask : ', task)
         icarl.observed_classes = task_num + 1
 
-        train_loader = data_loader.load(task, task_num)
-        test_loader = data_loader.load(task, task_num, train=False)
+        train_loader = data_loader.load(task)
+        test_loader = data_loader.load(task, train=False)
 
         best_acc = 0
         for epoch in range(args.epoch):

@@ -23,21 +23,21 @@ def get_transform(dataset_name='CIFAR100', train=True):
                     transforms.RandomCrop(32, padding=4),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    transforms.Normalize(dataset_stats[dataset_name]['mean'], dataset_stats[dataset_name]['std']),
+                    # transforms.Normalize(dataset_stats[dataset_name]['mean'], dataset_stats[dataset_name]['std']),
                 ]
             )
         else:
             transform = transforms.Compose(
                 [
                     transforms.ToTensor(),
-                    transforms.Normalize(dataset_stats[dataset_name]['mean'], dataset_stats[dataset_name]['std']),
+                    # transforms.Normalize(dataset_stats[dataset_name]['mean'], dataset_stats[dataset_name]['std']),
                 ]
             )
 
     return transform
 
 class dataset(Dataset):
-    def __init__(self, args, task, idx=0, train=True):
+    def __init__(self, args, task, train=True):
         self.args = args
         self.train = train
         self.transform = get_transform(args.dataset, self.train)
@@ -64,14 +64,13 @@ class dataset(Dataset):
             # load test data & label
             self.test_x = []
             self.test_y = []
-            max_task = int(max(task)) + 1
 
-            for task_idx in range(max_task):
+            for task_idx in task:
                 test_image_file = self.root + '/test/' + args.dataset + '_Class' + str(task_idx) + '.npy'
-                test_label_file = self.root + '/test/' + args.dataset + '_Labels' + str(task_idx) + '.npy'
+                test_labeled_file = self.root + '/test/' + args.dataset + '_Labels' + str(task_idx) + '.npy'
 
                 test_x = np.squeeze(np.load(test_image_file))
-                test_y = np.squeeze(np.load(test_label_file))
+                test_y = np.squeeze(np.load(test_labeled_file))
                 self.test_x.extend(test_x)
                 self.test_y.extend(test_y)
 
@@ -101,15 +100,15 @@ class dataloader():
     def __init__(self, args):
         self.args = args
 
-    def load(self, task, idx, train=True):
+    def load(self, task, train=True):
         if train:
-            train_dataset = dataset(self.args, task, idx, train)
+            train_dataset = dataset(self.args, task, train)
             train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers)
 
             return train_loader
 
         else:
-            test_dataset = dataset(self.args, task, idx, train)
+            test_dataset = dataset(self.args, task, train)
             test_loader = DataLoader(test_dataset, batch_size=self.args.test_size, shuffle=False, num_workers=self.args.num_workers)
 
             return test_loader
@@ -125,6 +124,7 @@ class memory_dataset(Dataset):
     
     def __getitem__(self, idx):
         x = self.data[idx]
+        x = self.transform(x)
         y = self.targets[idx]
         
         return x, y
