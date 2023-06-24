@@ -1,12 +1,11 @@
 import argparse
 import torch
-from torch.nn import CrossEntropyLoss
+import datetime as dt
 from torchvision import transforms
 from torchvision.datasets import CIFAR100
 from torchvision.transforms import ToTensor
 import torch.optim.lr_scheduler
 from avalanche.benchmarks import nc_benchmark
-from avalanche.benchmarks.datasets.dataset_utils import default_dataset_location
 from avalanche.models.resnet32 import resnet32
 from avalanche.training.supervised.strategy_wrappers import Replay
 from avalanche.evaluation.metrics import (
@@ -14,7 +13,7 @@ from avalanche.evaluation.metrics import (
     accuracy_metrics,
     loss_metrics,
 )
-from avalanche.logging import InteractiveLogger
+from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
 
@@ -77,7 +76,11 @@ def main(args):
     model = resnet32(num_classes=benchmark.n_classes)
 
     # choose some metrics and evaluation method
+    date = dt.datetime.now()
+    date = date.strftime("%Y_%m_%d_%H_%M_%S")
+
     interactive_logger = InteractiveLogger()
+    tensor_logger = TensorboardLogger("ER/logs_er_cifar100_" + date)
 
     eval_plugin = EvaluationPlugin(
         accuracy_metrics(
@@ -85,7 +88,7 @@ def main(args):
         ),
         loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
         forgetting_metrics(experience=True),
-        loggers=[interactive_logger],
+        loggers=[interactive_logger, tensor_logger],
     )
 
     optim = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-5, momentum=0.9)
