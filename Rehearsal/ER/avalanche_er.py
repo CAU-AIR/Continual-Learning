@@ -130,15 +130,15 @@ class Config(dict):
 if __name__ == "__main__":
     config = Config()
 
-    config.batch_size = 1
+    config.batch_size = 512
     config.nb_exp = 10
-    config.memory_size = 100
-    config.epochs = 1
+    config.memory_size = 2000
+    config.epochs = 60
     config.lr_base = 0.01
-    config.lr_milestones = [49, 63]
+    config.lr_milestones = [20,30,40,50]
     config.lr_factor = 5.0
     config.wght_decay = 0.00001
     config.fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
-    config.seed = 2222
+    config.seed = 0
 
     run_experiment(config)
