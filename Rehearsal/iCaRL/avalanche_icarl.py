@@ -67,13 +67,25 @@ def run_experiment(args):
     lr_milestones = [20,30,40,50]
     lr_factor = 5.0
 
-    scenario = nc_benchmark(train_dataset=train_set,
-                        test_dataset=test_set,
-                        n_experiences=args.incremental,
-                        task_labels=False,
-                        seed=args.seed,
-                        shuffle=False,
-                        )
+    if args.dataset == 'CIFAR10':
+        scenario = nc_benchmark(train_dataset=train_set,
+                            test_dataset=test_set,
+                            n_experiences=args.incremental,
+                            task_labels=False,
+                            seed=args.seed,
+                            shuffle=False,
+                            )
+    elif args.dataset == 'CIFAR100':
+        fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+
+        scenario = nc_benchmark(train_dataset=train_set,
+                            test_dataset=test_set,
+                            n_experiences=args.incremental,
+                            task_labels=False,
+                            seed=args.seed,
+                            shuffle=False,
+                            fixed_class_order=fixed_class_order
+                            )
 
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)
     model.apply(initialize_icarl_net)
