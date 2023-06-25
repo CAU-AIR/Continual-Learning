@@ -88,7 +88,7 @@ def main(args):
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("ER/logs_er_cifar100_" + date)
+    tensor_logger = TensorboardLogger("ER/logs_er_" + args.dataset + "_" + date)
 
     # eval_plugin = EvaluationPlugin(
     #     accuracy_metrics(
