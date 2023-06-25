@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
     parser.add_argument('--memory_size', type=int, default=2000)
     parser.add_argument('--subsample_size', type=int, default=50)
     parser.add_argument('--train_batch', type=int, default=512)

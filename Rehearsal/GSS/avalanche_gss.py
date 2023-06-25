@@ -74,7 +74,7 @@ def run_experiment(args):
     lr_milestones = [20,30,40,50]
     lr_factor = 5.0
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    # sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
+    sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
     criterion = torch.nn.CrossEntropyLoss()
 
     date = dt.datetime.now()
@@ -120,9 +120,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--mem_strength', type=int, default=10)
+    parser.add_argument('--mem_strength', type=int, default=50)
     parser.add_argument('--train_batch', type=int, default=512)
     parser.add_argument('--eval_batch', type=int, default=256)
     parser.add_argument('--epoch', type=int, default=60)
