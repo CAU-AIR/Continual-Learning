@@ -16,6 +16,7 @@ from avalanche.evaluation.metrics import (
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
+from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
 
 
 def main(args):
@@ -56,19 +57,19 @@ def main(args):
 
     # --- SCENARIO CREATION
     cifar_train = CIFAR100(
-        root="data/cifar100/",
+        root="data/CIFAR100/",
         train=True,
         download=True,
         transform=train_transform,
     )
     cifar_test = CIFAR100(
-        root="data/cifar100/",
+        root="data/CIFAR100/",
         train=False,
         download=True,
         transform=test_transform,
     )
     benchmark = nc_benchmark(
-        cifar_train, cifar_test, n_batches, task_labels=False, seed=0
+        cifar_train, cifar_test, n_batches, task_labels=False, seed=0, shuffle=False
     )
     # ---------
 
@@ -82,14 +83,20 @@ def main(args):
     interactive_logger = InteractiveLogger()
     tensor_logger = TensorboardLogger("ER/logs_er_cifar100_" + date)
 
+    # eval_plugin = EvaluationPlugin(
+    #     accuracy_metrics(
+    #         minibatch=True, epoch=True, experience=True, stream=True
+    #     ),
+    #     loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
+    #     forgetting_metrics(experience=True),
+    #     loggers=[interactive_logger, tensor_logger],
+    # )
+
     eval_plugin = EvaluationPlugin(
-        accuracy_metrics(
-            minibatch=True, epoch=True, experience=True, stream=True
-        ),
-        loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
-        forgetting_metrics(experience=True),
-        loggers=[interactive_logger, tensor_logger],
-    )
+        EpochAccuracy(),
+        ExperienceAccuracy(),
+        StreamAccuracy(),
+        loggers=[interactive_logger, tensor_logger])
 
     optim = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-5, momentum=0.9)
     criterion = torch.nn.CrossEntropyLoss()
@@ -129,5 +136,7 @@ if __name__ == "__main__":
         default=0,
         help="Select zero-indexed cuda device. -1 to use CPU.",
     )
+
     args = parser.parse_args()
+
     main(args)
