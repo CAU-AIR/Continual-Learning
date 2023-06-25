@@ -102,12 +102,12 @@ def run_experiment(args):
     
     buffer_transform = transforms.Compose([icarl_cifar_augment_data])
 
-    strategies = ICaRL(model.feature_extractor, model.classifier, optimizer, args.memory_size, buffer_transform=buffer_transform, fixed_memory=True, train_mb_size=args.train_batch, train_epochs=args.epoch, eval_mb_size=args.eval_batch, device=device, plugins=[sched], evaluator=eval_plugin)  # criterion = ICaRLLossPlugin()
+    strategy = ICaRL(model.feature_extractor, model.classifier, optimizer, args.memory_size, buffer_transform=buffer_transform, fixed_memory=True, train_mb_size=args.train_batch, train_epochs=args.epoch, eval_mb_size=args.eval_batch, device=device, plugins=[sched], evaluator=eval_plugin)  # criterion = ICaRLLossPlugin()
 
     for i, exp in enumerate(scenario.train_stream):
         eval_exps = [e for e in scenario.test_stream][: i + 1]
-        strategies.train(exp)
-        strategies.eval(eval_exps)
+        strategy.train(exp)
+        strategy.eval(eval_exps)
 
 
 if __name__ == "__main__":

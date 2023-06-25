@@ -73,7 +73,7 @@ def run_experiment(args):
     lr_milestones = [20,30,40,50]
     lr_factor = 5.0
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
+    # sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
     criterion = torch.nn.CrossEntropyLoss()
 
     date = dt.datetime.now()
@@ -87,24 +87,24 @@ def run_experiment(args):
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
 
-    strategies = MIR(
+    strategy = MIR(
         model = model,
         optimizer = optimizer,
         criterion = criterion,
         mem_size = args.memory_size,
-        subsample=100,
-        train_mb_size=args.train_batch,
+        subsample=args.subsample_size,
         train_epochs=args.epoch,
+        train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
-        plugins=[sched],
+        # plugins=[sched],
         evaluator=eval_plugin,
    )
 
     for i, exp in enumerate(scenario.train_stream):
         eval_exps = [e for e in scenario.test_stream][: i + 1]
-        strategies.train(exp)
-        strategies.eval(eval_exps)
+        strategy.train(exp)
+        strategy.eval(eval_exps)
 
 
 if __name__ == "__main__":
@@ -120,8 +120,9 @@ if __name__ == "__main__":
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--train_batch', type=int, default=2048)
-    parser.add_argument('--eval_batch', type=int, default=1024)
+    parser.add_argument('--subsample_size', type=int, default=50)
+    parser.add_argument('--train_batch', type=int, default=512)
+    parser.add_argument('--eval_batch', type=int, default=256)
     parser.add_argument('--epoch', type=int, default=60)
     parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
 

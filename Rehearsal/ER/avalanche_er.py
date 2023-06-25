@@ -113,7 +113,7 @@ def main(args):
         loggers=[interactive_logger, tensor_logger])
     
 
-    cl_strategy = Replay(
+    strategy = Replay(
         model,
         optim,
         criterion,
@@ -136,8 +136,8 @@ def main(args):
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
-        cl_strategy.train(exp)
-        cl_strategy.eval(eval_exps)
+        strategy.train(exp)
+        strategy.eval(eval_exps)
 
 
 if __name__ == "__main__":
