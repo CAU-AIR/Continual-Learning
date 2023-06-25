@@ -85,7 +85,7 @@ def run_experiment(args):
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("iCaRL/logs_iCaRL_" + args.dataset + date)
+    tensor_logger = TensorboardLogger("iCaRL/logs_iCaRL_" + args.dataset + "_" + date)
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
