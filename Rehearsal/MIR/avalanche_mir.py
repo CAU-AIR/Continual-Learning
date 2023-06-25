@@ -35,6 +35,8 @@ def run_experiment(args):
         train_set = CIFAR10('data/CIFAR10', train=True, download=True)
         test_set = CIFAR10('data/CIFAR10', train=False, download=True)
 
+        args.fixed_class_order = None
+
     elif args.dataset == 'CIFAR100':
         train_set = CIFAR100('data/CIFAR100', train=True, download=True)
         test_set = CIFAR100('data/CIFAR100', train=False, download=True)
