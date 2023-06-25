@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torchvision import transforms
 from torch.optim.lr_scheduler import MultiStepLR
-from utils.util import icarl_cifar100_augment_data, get_dataset_per_pixel_mean
+from utils.util import icarl_cifar_augment_data, get_dataset_per_pixel_mean
 
 from avalanche.models import IcarlNet, make_icarl_net, initialize_icarl_net
 from avalanche.training.supervised import ICaRL
@@ -24,12 +24,13 @@ def run_experiment(args):
     device = 'cuda:' + args.device
     device = torch.device(device)
 
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
-    torch.backends.cudnn.enabled = False
-    torch.backends.cudnn.deterministic = True
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    cudnn.enabled = False 
+    cudnn.deterministic = True
 
     if args.dataset == 'CIFAR10':
         train_set = CIFAR10('data/CIFAR10', train=True, download=True)
@@ -37,17 +38,11 @@ def run_experiment(args):
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR10('data/CIFAR10', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
 
-        train_set = CIFAR10('data/CIFAR10', train=True, download=True)
-        test_set = CIFAR10('data/CIFAR10', train=False, download=True)
-
     elif args.dataset == 'CIFAR100':
         train_set = CIFAR100('data/CIFAR100', train=True, download=True)
         test_set = CIFAR100('data/CIFAR100', train=False, download=True)
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR100('data/CIFAR100', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
-
-        train_set = CIFAR100('data/CIFAR100', train=True,download=True,)
-        test_set = CIFAR100('data/CIFAR100', train=False,download=True,)
 
     transforms_group = dict(
         eval=(transforms.Compose(
@@ -61,35 +56,30 @@ def run_experiment(args):
                 [
                     transforms.ToTensor(),
                     lambda img_pattern: img_pattern - per_pixel_mean,
-                    icarl_cifar100_augment_data,
+                    icarl_cifar_augment_data,
                 ]),
             None,
         ),
     )
 
+    if args.dataset == 'CIFAR10':
+        train_set = CIFAR10('data/CIFAR10', train=True,download=True,)
+        test_set = CIFAR10('data/CIFAR10', train=False,download=True,)
+    elif args.dataset == 'CIFAR100':
+        train_set = CIFAR100('data/CIFAR100', train=True,download=True,)
+        test_set = CIFAR100('data/CIFAR100', train=False,download=True,)
+
     train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
     test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
 
-
-    if args.dataset == 'CIFAR10':
-        scenario = nc_benchmark(train_dataset=train_set,
-                            test_dataset=test_set,
-                            n_experiences=args.incremental,
-                            task_labels=False,
-                            seed=args.seed,
-                            shuffle=False,
-                            )
-    elif args.dataset == 'CIFAR100':
-        fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
-
-        scenario = nc_benchmark(train_dataset=train_set,
-                            test_dataset=test_set,
-                            n_experiences=args.incremental,
-                            task_labels=False,
-                            seed=args.seed,
-                            shuffle=False,
-                            fixed_class_order=fixed_class_order
-                            )
+    scenario = nc_benchmark(train_dataset=train_set,
+                        test_dataset=test_set,
+                        n_experiences=args.incremental,
+                        task_labels=False,
+                        seed=args.seed,
+                        shuffle=False,
+                        fixed_class_order=args.fixed_class_order
+                        )
 
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)
     model.apply(initialize_icarl_net)
@@ -110,7 +100,7 @@ def run_experiment(args):
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
     
-    buffer_transform = transforms.Compose([icarl_cifar100_augment_data])
+    buffer_transform = transforms.Compose([icarl_cifar_augment_data])
 
     strategies = ICaRL(model.feature_extractor, model.classifier, optimizer, args.memory_size, buffer_transform=buffer_transform, fixed_memory=True, train_mb_size=args.train_batch, train_epochs=args.epoch, eval_mb_size=args.eval_batch, device=device, plugins=[sched], evaluator=eval_plugin)  # criterion = ICaRLLossPlugin()
 
@@ -121,6 +111,8 @@ def run_experiment(args):
 
 
 if __name__ == "__main__":
+    fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--seed', type=int, default=0)
@@ -133,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_batch', type=int, default=2048)
     parser.add_argument('--eval_batch', type=int, default=1024)
     parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
 
     args = parser.parse_args()
 

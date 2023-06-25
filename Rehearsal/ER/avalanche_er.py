@@ -2,7 +2,8 @@ import argparse
 import torch
 import datetime as dt
 from torchvision import transforms
-from torchvision.datasets import CIFAR10, CIFAR100
+from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
+# from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.transforms import ToTensor
 import torch.optim.lr_scheduler
 from avalanche.benchmarks import nc_benchmark
@@ -19,6 +20,7 @@ from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
 from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
 import random
 import numpy as np
+from avalanche.benchmarks.utils import make_classification_dataset
 
 
 def main(args):
@@ -41,28 +43,32 @@ def main(args):
                  'size' : 32}
     }
 
-    train_transform = transforms.Compose(
-        [
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(dataset_stats['CIFAR100']['mean'], dataset_stats['CIFAR100']['std']),
-        ]
-    )
-    test_transform = transforms.Compose(
-        [
-            ToTensor(), 
-            transforms.Normalize(dataset_stats['CIFAR100']['mean'], dataset_stats['CIFAR100']['std'])
-        ]
+    transforms_group = dict(
+        eval=(transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                ]),
+            None,
+        ),
+        train=(transforms.Compose(
+                [
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.ToTensor(),
+                ]),
+            None,
+        ),
     )
 
     if args.dataset == 'CIFAR10':
-        train_set = CIFAR10('data/CIFAR10', train=True, download=True, transform=train_transform)
-        test_set = CIFAR10('data/CIFAR10', train=False, download=True, transform=test_transform)
+        train_set = CIFAR10('data/CIFAR10', train=True, download=True)
+        test_set = CIFAR10('data/CIFAR10', train=False, download=True)
 
     elif args.dataset == 'CIFAR100':
-        train_set = CIFAR100('data/CIFAR100', train=True, download=True, transform=train_transform)
-        test_set = CIFAR100('data/CIFAR100', train=False, download=True, transform=test_transform)
+        train_set = CIFAR100('data/CIFAR100', train=True, download=True)
+        test_set = CIFAR100('data/CIFAR100', train=False, download=True)
+
+    train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
+    test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
 
 
     benchmark = nc_benchmark(train_set, 
@@ -71,6 +77,7 @@ def main(args):
                              task_labels=False, 
                              seed=args.seed,
                              shuffle=False,
+                             fixed_class_order=args.fixed_class_order,
                              )
 
     # MODEL CREATION
@@ -134,6 +141,8 @@ def main(args):
 
 
 if __name__ == "__main__":
+    fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--seed', type=int, default=0)
@@ -145,6 +154,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_batch', type=int, default=2048)
     parser.add_argument('--eval_batch', type=int, default=1024)
     parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
 
     args = parser.parse_args()
 
