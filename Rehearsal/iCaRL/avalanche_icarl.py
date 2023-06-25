@@ -86,7 +86,7 @@ def run_experiment(args):
 
     lr_milestones = [20,30,40,50]
     lr_factor = 5.0
-    optimizer = optim.SGD(model.parameters(), lr=2.0, momentum=0.9, weight_decay=1e-5)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
 
     date = dt.datetime.now()
