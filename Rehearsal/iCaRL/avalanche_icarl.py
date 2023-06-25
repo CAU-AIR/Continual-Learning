@@ -7,17 +7,18 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torchvision import transforms
 from torch.optim.lr_scheduler import MultiStepLR
-from utils.util import icarl_cifar_augment_data, get_dataset_per_pixel_mean
 
-from avalanche.models import IcarlNet, make_icarl_net, initialize_icarl_net
-from avalanche.training.supervised import ICaRL
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
 from avalanche.benchmarks.generators import nc_benchmark
-from avalanche.benchmarks.utils import AvalancheDataset, make_classification_dataset
+from avalanche.benchmarks.utils import make_classification_dataset
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
 from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
+
+from avalanche.models import IcarlNet, make_icarl_net, initialize_icarl_net
+from avalanche.training.supervised import ICaRL
+from utils.util import icarl_cifar_augment_data, get_dataset_per_pixel_mean
 
 
 def run_experiment(args):

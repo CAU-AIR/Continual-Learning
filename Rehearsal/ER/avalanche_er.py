@@ -1,38 +1,35 @@
-import argparse
-import torch
-import datetime as dt
-from torchvision import transforms
-from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
-# from torchvision.datasets import CIFAR10, CIFAR100
-from torchvision.transforms import ToTensor
-import torch.optim.lr_scheduler
-from avalanche.benchmarks import nc_benchmark
-from avalanche.models.resnet32 import resnet32
-from avalanche.training.supervised.strategy_wrappers import Replay
-from avalanche.evaluation.metrics import (
-    forgetting_metrics,
-    accuracy_metrics,
-    loss_metrics,
-)
-from avalanche.logging import InteractiveLogger, TensorboardLogger
-from avalanche.training.plugins import EvaluationPlugin
-from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
-from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
 import random
+import argparse
 import numpy as np
+import datetime as dt
+
+import torch
+import torch.optim as optim
+from torchvision import transforms
+import torch.backends.cudnn as cudnn
+from torch.optim.lr_scheduler import MultiStepLR
+
+from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
 from avalanche.benchmarks.utils import make_classification_dataset
+from avalanche.models.resnet32 import resnet32
+from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
+from avalanche.benchmarks.generators import nc_benchmark
+from avalanche.training.plugins import EvaluationPlugin
+from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
+from avalanche.logging import InteractiveLogger, TensorboardLogger
 
 
 def main(args):
     device = 'cuda:' + args.device
     device = torch.device(device)
 
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
-    torch.backends.cudnn.enabled = False
-    torch.backends.cudnn.deterministic = True
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    cudnn.enabled = False 
+    cudnn.deterministic = True
 
     dataset_stats = {
     'CIFAR10' : {'mean': (0.49139967861519607, 0.48215840839460783, 0.44653091444546567),
@@ -53,6 +50,7 @@ def main(args):
         train=(transforms.Compose(
                 [
                     transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
                 ]),
             None,
@@ -83,11 +81,11 @@ def main(args):
     # MODEL CREATION
     model = resnet32(num_classes=args.num_class)
 
-    optim = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-5, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     criterion = torch.nn.CrossEntropyLoss()
 
     sched = LRSchedulerPlugin(
-        torch.optim.lr_scheduler.MultiStepLR(optim, [20,30,40,50], gamma=1.0 / 5.0)
+        torch.optim.lr_scheduler.MultiStepLR(optimizer, [20,30,40,50], gamma=1.0 / 5.0)
     )
 
     # choose some metrics and evaluation method
@@ -115,14 +113,14 @@ def main(args):
 
     cl_strategy = Replay(
         model,
-        optim,
+        optimizer,
         criterion,
         mem_size=args.memory_size,
         train_epochs=args.epoch,
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
-        plugins=[sched],
+        # plugins=[sched],
         evaluator=eval_plugin,
     )
 
@@ -150,9 +148,10 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--train_batch', type=int, default=2048)
-    parser.add_argument('--eval_batch', type=int, default=1024)
+    parser.add_argument('--train_batch', type=int, default=512)
+    parser.add_argument('--eval_batch', type=int, default=256)
     parser.add_argument('--epoch', type=int, default=60)
     parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
 
