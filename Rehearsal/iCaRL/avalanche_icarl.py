@@ -37,11 +37,17 @@ def run_experiment(args):
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR10('data/CIFAR10', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
 
+        train_set = CIFAR10('data/CIFAR10', train=True, download=True)
+        test_set = CIFAR10('data/CIFAR10', train=False, download=True)
+
     elif args.dataset == 'CIFAR100':
         train_set = CIFAR100('data/CIFAR100', train=True, download=True)
         test_set = CIFAR100('data/CIFAR100', train=False, download=True)
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR100('data/CIFAR100', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
+
+        train_set = CIFAR100('data/CIFAR100', train=True,download=True,)
+        test_set = CIFAR100('data/CIFAR100', train=False,download=True,)
 
     transforms_group = dict(
         eval=(transforms.Compose(
@@ -64,8 +70,6 @@ def run_experiment(args):
     train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
     test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
 
-    lr_milestones = [20,30,40,50]
-    lr_factor = 5.0
 
     if args.dataset == 'CIFAR10':
         scenario = nc_benchmark(train_dataset=train_set,
@@ -90,6 +94,8 @@ def run_experiment(args):
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)
     model.apply(initialize_icarl_net)
 
+    lr_milestones = [20,30,40,50]
+    lr_factor = 5.0
     optimizer = optim.SGD(model.parameters(), lr=2.0, momentum=0.9, weight_decay=1e-5)
     sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
 

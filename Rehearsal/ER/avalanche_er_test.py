@@ -1,144 +1,163 @@
+import argparse
 import torch
-
-from avalanche.benchmarks.datasets import CIFAR100
-from avalanche.benchmarks.utils import AvalancheDataset
-from avalanche.models import SlimResNet18
-from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
-from torch.optim import SGD
+import datetime as dt
 from torchvision import transforms
-from avalanche.benchmarks.generators import nc_benchmark
+from torchvision.datasets import CIFAR10, CIFAR100
+from torchvision.transforms import ToTensor
+import torch.optim.lr_scheduler
+from avalanche.benchmarks import nc_benchmark
+from avalanche.models.resnet32 import resnet32
+from avalanche.training.supervised.strategy_wrappers import Replay
+from avalanche.evaluation.metrics import accuracy_metrics
+from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.training.plugins import EvaluationPlugin
-from avalanche.evaluation.metrics import (ExperienceAccuracy,StreamAccuracy,EpochAccuracy,)
-from avalanche.logging.interactive_logging import InteractiveLogger
+from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
+from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
 import random
 import numpy as np
-from torch.optim.lr_scheduler import MultiStepLR
-from avalanche.training.supervised import Replay
 
+from avalanche.training.storage_policy import ReservoirSamplingBuffer
+from avalanche.training.plugins import ReplayPlugin
+from avalanche.training.supervised import Naive
 
-def run_experiment(config):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def main(args):
+    device = 'cuda:' + args.device
+    device = torch.device(device)
 
-    torch.manual_seed(config.seed)
-    torch.cuda.manual_seed(config.seed)
-    np.random.seed(config.seed)
-    random.seed(config.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
     torch.backends.cudnn.enabled = False
     torch.backends.cudnn.deterministic = True
 
-    transforms_group = dict(
-        eval=(
-            transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                ]
-            ),
-            None,
-        ),
-        train=(
-            transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                ]
-            ),
-            None,
-        ),
+    dataset_stats = {
+    'CIFAR10' : {'mean': (0.49139967861519607, 0.48215840839460783, 0.44653091444546567),
+                 'std' : (0.2470322324632819, 0.24348512800005573, 0.26158784172796434),
+                 'size' : 32},
+    'CIFAR100': {'mean': (0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
+                 'std' : (0.2673342858792409, 0.25643846291708816, 0.2761504713256834),
+                 'size' : 32}
+    }
+
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(dataset_stats[args.dataset]['mean'], dataset_stats[args.dataset]['std']),
+        ]
+    )
+    test_transform = transforms.Compose(
+        [
+            ToTensor(), 
+            transforms.Normalize(dataset_stats[args.dataset]['mean'], dataset_stats[args.dataset]['std'])
+        ]
     )
 
-    train_set = CIFAR100(
-        "data/cifar100/",
-        train=True,
-        download=True,
-    )
-    test_set = CIFAR100(
-        "data/cifar100/",
-        train=False,
-        download=True,
-    )
+    if args.dataset == 'CIFAR10':
+        train_set = CIFAR10('data/CIFAR10', train=True, download=True, transform=train_transform)
+        test_set = CIFAR10('data/CIFAR10', train=False, download=True, transform=test_transform)
 
-    train_set = AvalancheDataset(
-        train_set,
-        transform_groups=transforms_group,
-        initial_transform_group="train",
-    )
-    test_set = AvalancheDataset(
-        test_set,
-        transform_groups=transforms_group,
-        initial_transform_group="eval",
-    )
+    elif args.dataset == 'CIFAR100':
+        train_set = CIFAR100('data/CIFAR100', train=True, download=True, transform=train_transform)
+        test_set = CIFAR100('data/CIFAR100', train=False, download=True, transform=test_transform)
 
-    scenario = nc_benchmark(
-        train_dataset=train_set,
-        test_dataset=test_set,
-        n_experiences=config.nb_exp,
-        task_labels=False,
-        seed=config.seed,
-        shuffle=False,
-        fixed_class_order=config.fixed_class_order,
-    )
 
-    evaluator = EvaluationPlugin(
-        EpochAccuracy(),
-        ExperienceAccuracy(),
-        StreamAccuracy(),
-        loggers=[InteractiveLogger()],
-    )
+    benchmark = nc_benchmark(train_set, 
+                             test_set, 
+                             args.incremental, 
+                             task_labels=False, 
+                             seed=args.seed,
+                             shuffle=False,
+                             )
 
-    model = SlimResNet18(nclasses=100)
+    # MODEL CREATION
+    model = resnet32(num_classes=args.num_class)
 
-    optim = SGD(
-        model.parameters(),
-        lr=config.lr_base,
-        weight_decay=config.wght_decay,
-        momentum=0.9,
-    )
-    sched = LRSchedulerPlugin(
-        MultiStepLR(optim, config.lr_milestones, gamma=1.0 / config.lr_factor)
-    )
+    optim = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-5, momentum=0.9)
     criterion = torch.nn.CrossEntropyLoss()
 
-    strategy = Replay(
-        model = model,
-        optimizer = optim,
-        criterion = criterion,
-        mem_size = config.memory_size,
-        train_mb_size=config.batch_size,
-        train_epochs=config.epochs,
-        eval_mb_size=config.batch_size,
+    sched = LRSchedulerPlugin(
+        torch.optim.lr_scheduler.MultiStepLR(optim, [20,30,40,50], gamma=1.0 / 5.0)
+    )
+
+    # choose some metrics and evaluation method
+    date = dt.datetime.now()
+    date = date.strftime("%Y_%m_%d_%H_%M_%S")
+
+    interactive_logger = InteractiveLogger()
+    tensor_logger = TensorboardLogger("ER/logs_er_" + args.dataset + "_" + date)
+
+    eval_plugin = EvaluationPlugin(
+        accuracy_metrics(epoch=True, experience=True, stream=True),
+        loggers=[interactive_logger, tensor_logger],
+    )
+
+    # eval_plugin = EvaluationPlugin(
+    #     EpochAccuracy(),
+    #     ExperienceAccuracy(),
+    #     StreamAccuracy(),
+    #     loggers=[interactive_logger, tensor_logger])
+    
+    storage_policy = ReservoirSamplingBuffer(max_size=100)
+    replay_plugin = ReplayPlugin(
+        mem_size=100, batch_size=1, storage_policy=storage_policy
+    )
+
+    cl_strategy = Naive(
+        model,
+        optim,
+        criterion,
+        train_epochs=args.epoch,
+        train_mb_size=args.train_batch,
+        eval_mb_size=args.eval_batch,
         device=device,
-        plugins=[sched],
-        evaluator=evaluator,
-   )
+        plugins=[replay_plugin, sched],
+        evaluator=eval_plugin,
+    )
 
-    for i, exp in enumerate(scenario.train_stream):
-        eval_exps = [e for e in scenario.test_stream][: i + 1]
-        strategy.train(exp, num_workers=4)
-        strategy.eval(eval_exps, num_workers=4)
+    # cl_strategy = Replay(
+    #     model,
+    #     optim,
+    #     criterion,
+    #     mem_size=args.memory_size,
+    #     train_epochs=args.epoch,
+    #     train_mb_size=args.train_batch,
+    #     eval_mb_size=args.eval_batch,
+    #     device=device,
+    #     plugins=[sched],
+    #     evaluator=eval_plugin,
+    # )
 
+    # TRAINING LOOP
+    print("Starting experiment...")
 
-class Config(dict):
-    def __getattribute__(self, key):
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key)
+    # ocl_benchmark = OnlineCLScenario(batch_streams)
+    for i, exp in enumerate(benchmark.train_stream):
+        print(i)
+        cl_strategy.train(exp)
+        cl_strategy.eval(benchmark.test_stream)
 
-    def __setattr__(self, key, value):
-        self[key] = value
+    # for i, exp in enumerate(benchmark.train_stream):
+    #     eval_exps = [e for e in benchmark.test_stream][: i + 1]
+    #     cl_strategy.train(exp)
+    #     cl_strategy.eval(eval_exps)
 
 
 if __name__ == "__main__":
-    config = Config()
+    parser = argparse.ArgumentParser()
 
-    config.batch_size = 512
-    config.nb_exp = 10
-    config.memory_size = 2000
-    config.epochs = 60
-    config.lr_base = 0.01
-    config.lr_milestones = [20,30,40,50]
-    config.lr_factor = 5.0
-    config.wght_decay = 0.00001
-    config.fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
-    config.seed = 0
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--device', type=str, default='0')
+    parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
+    parser.add_argument('--num_class', type=int, default=100)
+    parser.add_argument('--incremental', type=int, default=10)
+    parser.add_argument('--memory_size', type=int, default=2000)
+    parser.add_argument('--train_batch', type=int, default=2048)
+    parser.add_argument('--eval_batch', type=int, default=1024)
+    parser.add_argument('--epoch', type=int, default=60)
 
-    run_experiment(config)
+    args = parser.parse_args()
+
+    main(args)
