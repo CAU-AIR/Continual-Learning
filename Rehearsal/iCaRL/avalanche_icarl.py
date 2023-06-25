@@ -39,6 +39,8 @@ def run_experiment(args):
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR10('data/CIFAR10', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
 
+        args.fixed_class_order = None
+
     elif args.dataset == 'CIFAR100':
         train_set = CIFAR100('data/CIFAR100', train=True, download=True)
         test_set = CIFAR100('data/CIFAR100', train=False, download=True)
