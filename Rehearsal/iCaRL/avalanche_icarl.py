@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument('--eval_batch', type=int, default=1024)
     parser.add_argument('--epoch', type=int, default=60)
     parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
-
+ 
     args = parser.parse_args()
 
     run_experiment(args)
