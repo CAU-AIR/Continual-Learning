@@ -18,6 +18,8 @@ from avalanche.training.plugins import EvaluationPlugin
 from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 
+from avalanche.training.supervised.strategy_wrappers import Replay
+
 
 def main(args):
     device = 'cuda:' + args.device
@@ -95,22 +97,12 @@ def main(args):
     interactive_logger = InteractiveLogger()
     tensor_logger = TensorboardLogger("ER/logs_er_" + args.dataset + "_" + date)
 
-    # eval_plugin = EvaluationPlugin(
-    #     accuracy_metrics(
-    #         minibatch=True, epoch=True, experience=True, stream=True
-    #     ),
-    #     loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
-    #     forgetting_metrics(experience=True),
-    #     loggers=[interactive_logger, tensor_logger],
-    # )
-
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
     
-
     strategy = Replay(
         model,
         optimizer,
@@ -123,14 +115,6 @@ def main(args):
         # plugins=[sched],
         evaluator=eval_plugin,
     )
-
-    # TRAINING LOOP
-    print("Starting experiment...")
-
-    # # ocl_benchmark = OnlineCLScenario(batch_streams)
-    # for i, exp in enumerate(benchmark.train_stream):
-    #     cl_strategy.train(exp)
-    #     cl_strategy.eval(benchmark.test_stream)
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
