@@ -97,7 +97,7 @@ def main(args):
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("ER/logs_er_" + args.dataset + "_" + date)
+    tensor_logger = TensorboardLogger("ER/logs/" + args.dataset + "/" + args.device_name + "_" + date)
 
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
@@ -118,10 +118,14 @@ def main(args):
         evaluator=eval_plugin,
     )
 
+    last_acc = []
+
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
         strategy.train(exp)
-        strategy.eval(eval_exps)
+        last_acc.append(strategy.eval(eval_exps))
+
+    tensor_logger.writer.add_hparams(config=args, metric_dict=last_acc)
 
 
 if __name__ == "__main__":
@@ -131,6 +135,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
+    parser.add_argument('--device_name', type=str, default='cal_05')
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)

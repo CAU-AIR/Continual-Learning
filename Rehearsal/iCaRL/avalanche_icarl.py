@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
+from avalanche.benchmarks.classic import SplitCIFAR10
 from avalanche.benchmarks.generators import nc_benchmark
 from avalanche.benchmarks.utils import make_classification_dataset
 from avalanche.training.plugins import EvaluationPlugin
@@ -47,42 +48,70 @@ def run_experiment(args):
 
         per_pixel_mean = get_dataset_per_pixel_mean(CIFAR100('data/CIFAR100', train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
 
-    transforms_group = dict(
-        eval=(transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    lambda img_pattern: img_pattern - per_pixel_mean,
-                ]),
-            None,
-        ),
-        train=(transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    lambda img_pattern: img_pattern - per_pixel_mean,
-                    icarl_cifar_augment_data,
-                ]),
-            None,
-        ),
+    # transforms_group = dict(
+    #     eval=(transforms.Compose(
+    #             [
+    #                 transforms.ToTensor(),
+    #                 lambda img_pattern: img_pattern - per_pixel_mean,
+    #             ]),
+    #         None,
+    #     ),
+    #     train=(transforms.Compose(
+    #             [
+    #                 transforms.ToTensor(),
+    #                 lambda img_pattern: img_pattern - per_pixel_mean,
+    #                 icarl_cifar_augment_data,
+    #             ]),
+    #         None,
+    #     ),
+    # )
+
+    # if args.dataset == 'CIFAR10':
+    #     train_set = CIFAR10('data/CIFAR10', train=True,download=True,)
+    #     test_set = CIFAR10('data/CIFAR10', train=False,download=True,)
+    # elif args.dataset == 'CIFAR100':
+    #     train_set = CIFAR100('data/CIFAR100', train=True,download=True,)
+    #     test_set = CIFAR100('data/CIFAR100', train=False,download=True,)
+
+    # train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
+    # test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
+
+    # scenario = nc_benchmark(train_dataset=train_set,
+    #                     test_dataset=test_set,
+    #                     n_experiences=args.incremental,
+    #                     task_labels=False,
+    #                     seed=args.seed,
+    #                     shuffle=False,
+    #                     fixed_class_order=args.fixed_class_order
+    #                     )
+
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            lambda img_pattern: img_pattern - per_pixel_mean,
+            transforms.Normalize(
+                (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+            ),
+        ]
     )
 
-    if args.dataset == 'CIFAR10':
-        train_set = CIFAR10('data/CIFAR10', train=True,download=True,)
-        test_set = CIFAR10('data/CIFAR10', train=False,download=True,)
-    elif args.dataset == 'CIFAR100':
-        train_set = CIFAR100('data/CIFAR100', train=True,download=True,)
-        test_set = CIFAR100('data/CIFAR100', train=False,download=True,)
-
-    train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
-    test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
-
-    scenario = nc_benchmark(train_dataset=train_set,
-                        test_dataset=test_set,
-                        n_experiences=args.incremental,
-                        task_labels=False,
-                        seed=args.seed,
-                        shuffle=False,
-                        fixed_class_order=args.fixed_class_order
-                        )
+    eval_transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            lambda img_pattern: img_pattern - per_pixel_mean,
+            transforms.Normalize(
+                (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+            ),
+        ]
+    )
+    
+    scenario = SplitCIFAR10(args.incremental,
+                            seed=args.seed,
+                            train_transform=train_transform,
+                            eval_transform=eval_transform,
+                            dataset_root='data/CIFAR10')
 
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)
     model.apply(initialize_icarl_net)
@@ -90,13 +119,13 @@ def run_experiment(args):
     lr_milestones = [20,30,40,50]
     lr_factor = 5.0
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
+    # sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
 
     date = dt.datetime.now()
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("iCaRL/logs_iCaRL_" + args.dataset + "_" + date)
+    tensor_logger = TensorboardLogger("iCaRL/logs/" + args.dataset + "/" + args.device_name + "_" + date)
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
@@ -105,12 +134,28 @@ def run_experiment(args):
     
     buffer_transform = transforms.Compose([icarl_cifar_augment_data])
 
-    strategy = ICaRL(model.feature_extractor, model.classifier, optimizer, args.memory_size, buffer_transform=buffer_transform, fixed_memory=True, train_mb_size=args.train_batch, train_epochs=args.epoch, eval_mb_size=args.eval_batch, device=device, plugins=[sched], evaluator=eval_plugin)  # criterion = ICaRLLossPlugin()
+    strategy = ICaRL(
+        model.feature_extractor, 
+        model.classifier, 
+        optimizer, 
+        args.memory_size, 
+        buffer_transform=buffer_transform, 
+        fixed_memory=True, 
+        train_mb_size=args.train_batch, 
+        train_epochs=args.epoch, 
+        eval_mb_size=args.eval_batch, 
+        device=device, 
+        # plugins=[sched], 
+        evaluator=eval_plugin)  # criterion = ICaRLLossPlugin()
+
+    last_acc = []
 
     for i, exp in enumerate(scenario.train_stream):
         eval_exps = [e for e in scenario.test_stream][: i + 1]
         strategy.train(exp)
-        strategy.eval(eval_exps)
+        last_acc.append(strategy.eval(eval_exps))
+
+    tensor_logger.writer.add_hparams(config=args, metric_dict=last_acc)
 
 
 if __name__ == "__main__":
@@ -120,6 +165,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
+    parser.add_argument('--device_name', type=str, default='cal_05')
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
