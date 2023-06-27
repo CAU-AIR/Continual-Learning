@@ -83,7 +83,7 @@ def run_experiment(args):
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("GSS/logs_gss_" + args.dataset + "_" + date)
+    tensor_logger = TensorboardLogger("GSS/logs/" + args.dataset + "/" + args.device_name + "_" + date)
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
@@ -110,6 +110,10 @@ def run_experiment(args):
         strategy.train(exp)
         strategy.eval(eval_exps)
 
+    config = vars(args)
+    metric_dict = strategy.evaluator.get_last_metrics()
+    tensor_logger.writer.add_hparams(hparam_dict=config, metric_dict=metric_dict)
+
 
 if __name__ == "__main__":
     fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
@@ -118,16 +122,17 @@ if __name__ == "__main__":
 
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
+    parser.add_argument('--device_name', type=str, default='cal_06')
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
 
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--mem_strength', type=int, default=50)
+    parser.add_argument('--mem_strength', type=int, default=1)
     parser.add_argument('--train_batch', type=int, default=512)
     parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--epoch', type=int, default=30)
     parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
     parser.add_argument('--input_size', type=list, default=[3, 32, 32])
 

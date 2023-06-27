@@ -7,6 +7,8 @@ runs=15
 #CIFAR-10
 python er_main.py --method mir_replay --lr 0.1 --samples_per_task -1 --data_path ../Dataset/CIFAR10/ --dataset split_cifar10 --n_runs $runs --subsample 50  --disc_iters $n_iters --mem_size 50  --suffix 'ER_MIR'
 
+# python er_main.py --method mir_replay --dataset split_cifar10 --mem_size 50
+
 # for mem in "${mems[@]}"
 #     do
 #         python er_main.py --method mir_replay --lr 0.1 --samples_per_task -1 --data_path ../Dataset/CIFAR10/ --dataset split_cifar10 --n_runs $runs --subsample 50  --disc_iters $n_iters --mem_size $mem  --suffix 'ER_MIR'

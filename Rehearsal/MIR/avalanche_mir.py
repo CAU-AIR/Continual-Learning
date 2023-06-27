@@ -72,17 +72,15 @@ def run_experiment(args):
 
     model = resnet32(num_classes=args.num_class)
 
-    lr_milestones = [20,30,40,50]
-    lr_factor = 5.0
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    # sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
     criterion = torch.nn.CrossEntropyLoss()
 
     date = dt.datetime.now()
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("MIR/logs_mir_" + args.dataset + "_" + date)
+    tensor_logger = TensorboardLogger("MIR/logs/" + args.dataset + "/" + args.device_name + "_" + date)
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
@@ -95,18 +93,23 @@ def run_experiment(args):
         criterion = criterion,
         mem_size = args.memory_size,
         subsample=args.subsample_size,
+        batch_size_mem=args.batch_size_mem,
         train_epochs=args.epoch,
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
-        # plugins=[sched],
         evaluator=eval_plugin,
-   )
+    )
 
+    
     for i, exp in enumerate(scenario.train_stream):
         eval_exps = [e for e in scenario.test_stream][: i + 1]
         strategy.train(exp)
         strategy.eval(eval_exps)
+
+    config = vars(args)
+    metric_dict = strategy.evaluator.get_last_metrics()
+    tensor_logger.writer.add_hparams(hparam_dict=config, metric_dict=metric_dict)
 
 
 if __name__ == "__main__":
@@ -116,13 +119,15 @@ if __name__ == "__main__":
 
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
+    parser.add_argument('--device_name', type=str, default='cal_06')
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
 
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--subsample_size', type=int, default=50)
+    parser.add_argument('--subsample_size', type=int, default=512)
+    parser.add_argument('--batch_size_mem', type=int, default=10)
     parser.add_argument('--train_batch', type=int, default=512)
     parser.add_argument('--eval_batch', type=int, default=256)
     parser.add_argument('--epoch', type=int, default=60)
