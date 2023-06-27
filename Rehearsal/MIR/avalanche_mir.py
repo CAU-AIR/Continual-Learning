@@ -17,6 +17,9 @@ from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, Ep
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 
 from avalanche.training.supervised.strategy_wrappers import MIR
+from avalanche.training.supervised import Naive
+from avalanche.training.plugins import MIRPlugin, ReplayPlugin
+from avalanche.training.storage_policy import ClassBalancedBuffer
 
 
 def run_experiment(args):
@@ -33,7 +36,7 @@ def run_experiment(args):
 
     if args.dataset == 'CIFAR10':
         args.num_class = 10
-        fixed_class_order = [i for i in range(10)]
+        fixed_class_order = np.arange(10)
 
         benchmark = ccifar10.SplitCIFAR10(
             n_experiences=args.incremental,
@@ -108,17 +111,21 @@ def run_experiment(args):
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
 
+    storage_policy = ClassBalancedBuffer(args.memory_size, adaptive_size=True)
+    replay_plugin = [ReplayPlugin(args.memory_size, storage_policy=storage_policy)]
+    
     strategy = MIR(
         model = model,
         optimizer = optimizer,
         criterion = criterion,
         mem_size = args.memory_size,
         subsample=args.subsample_size,
-        # batch_size_mem=args.batch_size_mem,
+        batch_size_mem=args.batch_size_mem,
         train_epochs=args.epoch,
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
+        plugins=replay_plugin,
         evaluator=eval_plugin,
     )
 
@@ -141,13 +148,13 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.05)
     parser.add_argument('--memory_size', type=int, default=1000)
     parser.add_argument('--subsample_size', type=int, default=50)
     parser.add_argument('--batch_size_mem', type=int, default=10)
-    parser.add_argument('--train_batch', type=int, default=512)
-    parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--train_batch', type=int, default=10)
+    parser.add_argument('--eval_batch', type=int, default=64)
+    parser.add_argument('--epoch', type=int, default=15)
 
     args = parser.parse_args()
 

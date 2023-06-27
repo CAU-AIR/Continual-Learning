@@ -89,12 +89,9 @@ def run_experiment(args):
     if args.dataset == 'CUB200':
         model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     criterion = torch.nn.CrossEntropyLoss()
-
-    sched = LRSchedulerPlugin(
-        torch.optim.lr_scheduler.MultiStepLR(optimizer, [20,30,40,50], gamma=1.0 / 5.0)
-    )
 
     # choose some metrics and evaluation method
     date = dt.datetime.now()
@@ -119,7 +116,6 @@ def run_experiment(args):
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
-        # plugins=[sched],
         evaluator=eval_plugin,
    )
 
@@ -142,12 +138,12 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
-    parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--mem_strength', type=int, default=1)
-    parser.add_argument('--train_batch', type=int, default=512)
-    parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.05)
+    parser.add_argument('--memory_size', type=int, default=1000)
+    parser.add_argument('--mem_strength', type=int, default=10)
+    parser.add_argument('--train_batch', type=int, default=10)
+    parser.add_argument('--eval_batch', type=int, default=10)
+    parser.add_argument('--epoch', type=int, default=15)
     parser.add_argument('--input_size', type=list, default=[3, 32, 32])
 
     args = parser.parse_args()
