@@ -9,14 +9,13 @@ from torchvision import transforms
 import torch.backends.cudnn as cudnn
 from torch.optim.lr_scheduler import MultiStepLR
 
-from avalanche.benchmarks.datasets import CIFAR10, CIFAR100
-from avalanche.benchmarks.utils import make_classification_dataset
+from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100
 from avalanche.models.resnet32 import resnet32
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
-from avalanche.benchmarks.generators import nc_benchmark
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
 from avalanche.logging import InteractiveLogger, TensorboardLogger
+
 from avalanche.training.supervised import GSS_greedy
 
 
@@ -33,52 +32,71 @@ def run_experiment(args):
     cudnn.deterministic = True
 
     if args.dataset == 'CIFAR10':
-        train_set = CIFAR10('data/CIFAR10', train=True, download=True)
-        test_set = CIFAR10('data/CIFAR10', train=False, download=True)
+        args.num_class = 10
+        fixed_class_order = [i for i in range(10)]
 
-        args.fixed_class_order = None
+        benchmark = ccifar10.SplitCIFAR10(
+            n_experiences=args.incremental,
+            seed=args.seed,
+            fixed_class_order=fixed_class_order,
+            dataset_root='data/CIFAR10'
+        )
 
     elif args.dataset == 'CIFAR100':
-        train_set = CIFAR100('data/CIFAR100', train=True, download=True)
-        test_set = CIFAR100('data/CIFAR100', train=False, download=True)
+        args.num_class = 100
+        fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
 
-    transforms_group = dict(
-        eval=(transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                ]),
-            None,
-        ),
-        train=(transforms.Compose(
-                [
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                ]),
-            None,
-        ),
-    )
+        benchmark = ccifar100.SplitCIFAR100(
+            n_experiences=args.incremental,
+            seed=args.seed,
+            fixed_class_order=fixed_class_order,
+            dataset_root='data/CIFAR100'
+        )
 
-    train_set = make_classification_dataset(train_set, transform_groups=transforms_group, initial_transform_group="train",)
-    test_set = make_classification_dataset(test_set, transform_groups=transforms_group, initial_transform_group="eval",)
+    elif args.dataset == 'CUB200':
+        args.num_class = 200
 
-    scenario = nc_benchmark(train_dataset=train_set,
-                        test_dataset=test_set,
-                        n_experiences=args.incremental,
-                        task_labels=False,
-                        seed=args.seed,
-                        shuffle=False,
-                        fixed_class_order=args.fixed_class_order
-                        )
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize((224, 244)),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
+        eval_transform = transforms.Compose(
+            [
+                transforms.Resize((224, 244)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
+
+        benchmark = ccub200.SplitCUB200(
+            n_experiences=args.incremental,
+            classes_first_batch=100,
+            seed=args.seed,
+            train_transform=train_transform,
+            eval_transform=eval_transform,
+            dataset_root='data/CUB200'
+        )
 
     model = resnet32(num_classes=args.num_class)
+    if args.dataset == 'CUB200':
+        model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
 
-    lr_milestones = [20,30,40,50]
-    lr_factor = 5.0
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
     criterion = torch.nn.CrossEntropyLoss()
 
+    sched = LRSchedulerPlugin(
+        torch.optim.lr_scheduler.MultiStepLR(optimizer, [20,30,40,50], gamma=1.0 / 5.0)
+    )
+
+    # choose some metrics and evaluation method
     date = dt.datetime.now()
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
@@ -105,26 +123,23 @@ def run_experiment(args):
         evaluator=eval_plugin,
    )
 
-    for i, exp in enumerate(scenario.train_stream):
-        eval_exps = [e for e in scenario.test_stream][: i + 1]
+    for i, exp in enumerate(benchmark.train_stream):
+        eval_exps = [e for e in benchmark.test_stream][: i + 1]
         strategy.train(exp)
         strategy.eval(eval_exps)
 
     config = vars(args)
-    metric_dict = strategy.evaluator.get_last_metrics()
-    tensor_logger.writer.add_hparams(hparam_dict=config, metric_dict=metric_dict)
+    metric_dict = eval_plugin.last_metric_results
+    tensor_logger.writer.add_hparams(config, metric_dict)
 
 
 if __name__ == "__main__":
-    fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
     parser.add_argument('--device_name', type=str, default='cal_06')
-    parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100'])
-
+    parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
@@ -132,8 +147,7 @@ if __name__ == "__main__":
     parser.add_argument('--mem_strength', type=int, default=1)
     parser.add_argument('--train_batch', type=int, default=512)
     parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=30)
-    parser.add_argument('--fixed_class_order', type=list, default=fixed_class_order)
+    parser.add_argument('--epoch', type=int, default=60)
     parser.add_argument('--input_size', type=list, default=[3, 32, 32])
 
     args = parser.parse_args()
