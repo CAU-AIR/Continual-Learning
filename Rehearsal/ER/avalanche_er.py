@@ -38,7 +38,7 @@ def main(args):
         benchmark = ccifar10.SplitCIFAR10(
             n_experiences=args.incremental,
             seed=args.seed,
-            fixed_class_order=fixed_class_order
+            fixed_class_order=fixed_class_order,
             dataset_root='data/CIFAR10'
         )
 
@@ -58,7 +58,7 @@ def main(args):
 
         train_transform = transforms.Compose(
             [
-                transforms.Resize((32, 32)),
+                transforms.Resize((224, 244)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -68,7 +68,7 @@ def main(args):
         )
         eval_transform = transforms.Compose(
             [
-                transforms.Resize((32, 32)),
+                transforms.Resize((224, 244)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
@@ -88,6 +88,8 @@ def main(args):
 
     # MODEL CREATION
     model = resnet32(num_classes=args.num_class)
+    if args.dataset == 'CUB200':
+        model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
 
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     criterion = torch.nn.CrossEntropyLoss()
@@ -141,10 +143,10 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
-    parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--train_batch', type=int, default=512)
-    parser.add_argument('--eval_batch', type=int, default=256)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
+    parser.add_argument('--memory_size', type=int, default=1000)
+    parser.add_argument('--train_batch', type=int, default=32)
+    parser.add_argument('--eval_batch', type=int, default=16)
     parser.add_argument('--epoch', type=int, default=60)
 
     args = parser.parse_args()
