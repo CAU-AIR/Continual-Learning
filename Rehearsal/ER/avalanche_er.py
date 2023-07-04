@@ -7,17 +7,17 @@ import torch
 import torch.optim as optim
 from torchvision import transforms
 import torch.backends.cudnn as cudnn
-from torch.optim.lr_scheduler import MultiStepLR
 
 from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100
 from avalanche.models.resnet32 import resnet32
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
-from avalanche.training.plugins import EvaluationPlugin
 from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 
 from avalanche.training.supervised.strategy_wrappers import Replay
-
+from avalanche.training.storage_policy import ClassBalancedBuffer
+from avalanche.training.plugins import ReplayPlugin, EvaluationPlugin
+from avalanche.training.supervised import Naive
 
 def main(args):
     device = 'cuda:' + args.device
@@ -44,7 +44,7 @@ def main(args):
 
     elif args.dataset == 'CIFAR100':
         args.num_class = 100
-        fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+        fixed_class_order = np.arange(100)
 
         benchmark = ccifar100.SplitCIFAR100(
             n_experiences=args.incremental,
@@ -91,11 +91,11 @@ def main(args):
     if args.dataset == 'CUB200':
         model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=2e-4)
     criterion = torch.nn.CrossEntropyLoss()
 
     sched = LRSchedulerPlugin(
-        torch.optim.lr_scheduler.MultiStepLR(optimizer, [20,30,40,50], gamma=1.0 / 5.0)
+        torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.epoch//3, gamma=0.3)
     )
 
     # choose some metrics and evaluation method
@@ -111,18 +111,33 @@ def main(args):
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
     
-    strategy = Replay(
+    storage_policy = ClassBalancedBuffer(args.memory_size, adaptive_size=True)
+    replay_plugin = ReplayPlugin(args.memory_size, storage_policy=storage_policy)
+
+    strategy = Naive(
         model,
         optimizer,
         criterion,
-        mem_size=args.memory_size,
         train_epochs=args.epoch,
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
         device=device,
-        # plugins=[sched],
+        plugins=[sched, replay_plugin],
         evaluator=eval_plugin,
     )
+    
+    # strategy = Replay(
+    #     model,
+    #     optimizer,
+    #     criterion,
+    #     mem_size=args.memory_size,
+    #     train_epochs=args.epoch,
+    #     train_mb_size=args.train_batch,
+    #     eval_mb_size=args.eval_batch,
+    #     device=device,
+    #     plugins=[sched],
+    #     evaluator=eval_plugin,
+    # )
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
@@ -143,11 +158,11 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
-    parser.add_argument('--memory_size', type=int, default=1000)
-    parser.add_argument('--train_batch', type=int, default=32)
-    parser.add_argument('--eval_batch', type=int, default=16)
-    parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
+    parser.add_argument('--memory_size', type=int, default=2000)
+    parser.add_argument('--train_batch', type=int, default=128)
+    parser.add_argument('--eval_batch', type=int, default=64)
+    parser.add_argument('--epoch', type=int, default=200)
 
     args = parser.parse_args()
 

@@ -1,30 +1,39 @@
-import copy
-from typing import Callable, List, Optional
-from abc import ABC, abstractmethod
+from collections import defaultdict
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    SupportsInt,
+    Union,
+)
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss, Module
 from torch.optim import Optimizer
 
-from der_utils.data import AvalancheDataset, make_avalanche_dataset
+from avalanche.benchmarks.utils import make_avalanche_dataset
+from avalanche.benchmarks.utils.data import AvalancheDataset
 from der_utils.data_attribute import TensorDataAttribute
+from der_utils.utils import cycle
 from avalanche.core import SupervisedPlugin
-from avalanche.models.utils import avalanche_forward
-from avalanche.training.plugins.evaluation import default_evaluator
-from avalanche.training.storage_policy import (BalancedExemplarsBuffer,
-                                               ReservoirSamplingBuffer)
+from avalanche.training.plugins.evaluation import (
+    EvaluationPlugin,
+    default_evaluator,
+)
+from avalanche.training.storage_policy import (
+    BalancedExemplarsBuffer,
+    ReservoirSamplingBuffer,
+)
 from avalanche.training.templates import SupervisedTemplate
-import torch.nn as nn
-
-
-from typing import List, Iterable, Sequence, Union, Dict, Tuple, SupportsInt
-from avalanche.benchmarks.utils.dataset_definitions import ISupportedClassificationDataset
 
 
 @torch.no_grad()
 def compute_dataset_logits(dataset, model, batch_size, device):
+    was_training = model.training
     model.eval()
 
     logits = []
@@ -37,168 +46,11 @@ def compute_dataset_logits(dataset, model, batch_size, device):
         x = x.to(device)
         out = model(x)
         logits.extend(list(out.cpu()))
+
+    if was_training:
+        model.train()
+
     return logits
-
-
-def cycle(loader):
-    while True:
-        for batch in loader:
-            yield batch
-
-def concat_datasets_sequentially(
-    train_dataset_list: Sequence[ISupportedClassificationDataset],
-    test_dataset_list: Sequence[ISupportedClassificationDataset],
-) -> Tuple[ClassificationDataset, ClassificationDataset, List[list]]:
-
-    remapped_train_datasets = []
-    remapped_test_datasets = []
-    next_remapped_idx = 0
-
-    # Obtain the number of classes of each dataset
-    classes_per_dataset = [
-        _count_unique(
-            train_dataset_list[dataset_idx].targets,
-            test_dataset_list[dataset_idx].targets,
-        )
-        for dataset_idx in range(len(train_dataset_list))
-    ]
-
-    new_class_ids_per_dataset = []
-    for dataset_idx in range(len(train_dataset_list)):
-
-        # Get the train and test sets of the dataset
-        train_set = train_dataset_list[dataset_idx]
-        test_set = test_dataset_list[dataset_idx]
-
-        # Get the classes in the dataset
-        dataset_classes = set(map(int, train_set.targets))
-
-        # The class IDs for this dataset will be in range
-        # [n_classes_in_previous_datasets,
-        #       n_classes_in_previous_datasets + classes_in_this_dataset)
-        new_classes = list(
-            range(
-                next_remapped_idx,
-                next_remapped_idx + classes_per_dataset[dataset_idx],
-            )
-        )
-        new_class_ids_per_dataset.append(new_classes)
-
-        # AvalancheSubset is used to apply the class IDs transformation.
-        # Remember, the class_mapping parameter must be a list in which:
-        # new_class_id = class_mapping[original_class_id]
-        # Hence, a list of size equal to the maximum class index is created
-        # Only elements corresponding to the present classes are remapped
-        class_mapping = [-1] * (max(dataset_classes) + 1)
-        j = 0
-        for i in dataset_classes:
-            class_mapping[i] = new_classes[j]
-            j += 1
-
-        # Create remapped datasets and append them to the final list
-        remapped_train_datasets.append(
-            classification_subset(train_set, class_mapping=class_mapping)
-        )
-        remapped_test_datasets.append(
-            classification_subset(test_set, class_mapping=class_mapping)
-        )
-        next_remapped_idx += classes_per_dataset[dataset_idx]
-
-    return (
-        concat_datasets(remapped_train_datasets),
-        concat_datasets(remapped_test_datasets),
-        new_class_ids_per_dataset,
-    )
-
-class ExemplarsBuffer(ABC):
-    """ABC for rehearsal buffers to store exemplars.
-
-    `self.buffer` is an AvalancheDataset of samples collected from the previous
-    experiences. The buffer can be updated by calling `self.update(strategy)`.
-    """
-
-    def __init__(self, max_size: int):
-        """Init.
-
-        :param max_size: max number of input samples in the replay memory.
-        """
-        self.max_size = max_size
-        """ Maximum size of the buffer. """
-        self._buffer: AvalancheDataset = concat_datasets([])
-
-    @property
-    def buffer(self) -> AvalancheDataset:
-        """Buffer of samples."""
-        return self._buffer
-
-    @buffer.setter
-    def buffer(self, new_buffer: AvalancheDataset):
-        self._buffer = new_buffer
-
-    @abstractmethod
-    def update(self, strategy: "SupervisedTemplate", **kwargs):
-        """Update `self.buffer` using the `strategy` state.
-
-        :param strategy:
-        :param kwargs:
-        :return:
-        """
-        ...
-
-    @abstractmethod
-    def resize(self, strategy: "SupervisedTemplate", new_size: int):
-        """Update the maximum size of the buffer.
-
-        :param strategy:
-        :param new_size:
-        :return:
-        """
-        ...
-
-class ReservoirSamplingBuffer(ExemplarsBuffer):
-    """Buffer updated with reservoir sampling."""
-
-    def __init__(self, max_size: int):
-        """
-        :param max_size:
-        """
-        # The algorithm follows
-        # https://en.wikipedia.org/wiki/Reservoir_sampling
-        # We sample a random uniform value in [0, 1] for each sample and
-        # choose the `size` samples with higher values.
-        # This is equivalent to a random selection of `size_samples`
-        # from the entire stream.
-        super().__init__(max_size)
-        # INVARIANT: _buffer_weights is always sorted.
-        self._buffer_weights = torch.zeros(0)
-
-    def update(self, strategy: "SupervisedTemplate", **kwargs):
-        """Update buffer."""
-        self.update_from_dataset(strategy.experience.dataset)
-
-    def update_from_dataset(self, new_data: AvalancheDataset):
-        """Update the buffer using the given dataset.
-
-        :param new_data:
-        :return:
-        """
-        new_weights = torch.rand(len(new_data))
-
-        cat_weights = torch.cat([new_weights, self._buffer_weights])
-        cat_data = new_data.concat(self.buffer)
-        sorted_weights, sorted_idxs = cat_weights.sort(descending=True)
-
-        buffer_idxs = sorted_idxs[: self.max_size]
-        self.buffer = cat_data.subset(buffer_idxs)
-        self._buffer_weights = sorted_weights[: self.max_size]
-
-    def resize(self, strategy, new_size):
-        """Update the maximum size of the buffer."""
-        self.max_size = new_size
-        if len(self.buffer) <= self.max_size:
-            return
-        self.buffer = self.buffer.subset(torch.arange(self.max_size))
-        self._buffer_weights = self._buffer_weights[: self.max_size]
 
 
 class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
@@ -210,7 +62,7 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
         self,
         max_size: int,
         adaptive_size: bool = True,
-        total_num_classes: int = None,
+        total_num_classes: Optional[int] = None,
     ):
         """Init.
 
@@ -222,17 +74,18 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
         :param transforms: transformation to be applied to the buffer
         """
         if not adaptive_size:
-            assert (
-                total_num_classes > 0
-            ), """When fixed exp mem size, total_num_classes should be > 0."""
+            assert total_num_classes is not None and total_num_classes > 0, \
+                "When fixed exp mem size, total_num_classes should be > 0."
 
         super().__init__(max_size, adaptive_size, total_num_classes)
         self.adaptive_size = adaptive_size
         self.total_num_classes = total_num_classes
-        self.seen_classes = set()
+        self.seen_classes: Set[int] = set()
 
     def update(self, strategy: "SupervisedTemplate", **kwargs):
-        new_data = strategy.experience.dataset
+        assert strategy.experience is not None
+        new_data: AvalancheDataset = strategy.experience.dataset
+
         logits = compute_dataset_logits(
             new_data.eval(), 
             strategy.model,
@@ -246,10 +99,12 @@ class ClassBalancedBufferWithLogits(BalancedExemplarsBuffer):
             ],
         )
         # Get sample idxs per class
-        cl_idxs = {}
-        for idx, target in enumerate(new_data.targets):
-            if target not in cl_idxs:
-                cl_idxs[target] = []
+        cl_idxs: Dict[int, List[int]] = defaultdict(list)
+        targets: Sequence[SupportsInt] = getattr(new_data, 'targets')
+        for idx, target in enumerate(targets):
+            # Conversion to int may fix issues when target
+            # is a single-element torch.tensor
+            target = int(target)
             cl_idxs[target].append(idx)
 
         # Make AvalancheSubset per class
@@ -298,15 +153,18 @@ class DER(SupervisedTemplate):
         optimizer: Optimizer,
         criterion=CrossEntropyLoss(),
         mem_size: int = 200,
-        batch_size_mem: int = None,
+        batch_size_mem: Optional[int] = None,
         alpha: float = 0.1,
         beta: float = 0.5,
         train_mb_size: int = 1,
         train_epochs: int = 1,
         eval_mb_size: Optional[int] = 1,
-        device="cpu",
+        device: Union[str, torch.device] = "cpu",
         plugins: Optional[List[SupervisedPlugin]] = None,
-        evaluator=None,
+        evaluator: Union[
+            EvaluationPlugin,
+            Callable[[], EvaluationPlugin]
+        ] = default_evaluator,
         eval_every=-1,
         peval_mode="epoch",
     ):
@@ -419,7 +277,8 @@ class DER(SupervisedTemplate):
             self._before_training_iteration(**kwargs)
 
             self.optimizer.zero_grad()
-            self.loss = 0
+            # self.loss = self._make_empty_loss()
+            self.loss = torch.zeros(1, device=self.device)
 
             # Forward
             self._before_forward(**kwargs)

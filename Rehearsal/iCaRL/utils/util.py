@@ -6,7 +6,7 @@ from typing import Union
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-def icarl_cifar_augment_data(img):
+def icarl_augment_data(img):
     img = img.numpy()
     padded = np.pad(img, ((0, 0), (4, 4), (4, 4)), mode="constant")
     random_cropped = np.zeros(img.shape, dtype=np.float32)

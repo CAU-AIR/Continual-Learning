@@ -10,14 +10,13 @@ from torch.optim.lr_scheduler import MultiStepLR
 
 from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100
-from avalanche.benchmarks import datasets
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
 from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
 
 from avalanche.models import IcarlNet, make_icarl_net, initialize_icarl_net
 from avalanche.training.supervised import ICaRL
-from utils.util import icarl_cifar_augment_data, get_dataset_per_pixel_mean
+from utils.util import icarl_augment_data
 
 
 def run_experiment(args):
@@ -32,27 +31,19 @@ def run_experiment(args):
     cudnn.enabled = False 
     cudnn.deterministic = True
 
+    transform_prototypes = transforms.Compose([icarl_augment_data,])
+    
     if args.dataset == 'CIFAR10' or args.dataset == 'CIFAR100':
-        data_root = 'data/' + args.dataset
-        per_pixel_mean = get_dataset_per_pixel_mean(datasets.__dict__[args.dataset](data_root, train=True, download=True, transform=transforms.Compose([transforms.ToTensor()])))
-
         train_transform = transforms.Compose(
             [
                 transforms.ToTensor(),
-                lambda img_pattern: img_pattern - per_pixel_mean,
-                icarl_cifar_augment_data,
-            ]
-        )
-        eval_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                lambda img_pattern: img_pattern - per_pixel_mean,
-            ]
-        )
+                icarl_augment_data,
+            ])
+        eval_transform = transforms.Compose([transforms.ToTensor()])
 
     if args.dataset == 'CIFAR10':
         args.num_class = 10
-        fixed_class_order = [i for i in range(10)]
+        fixed_class_order = np.arange(10)
 
         benchmark = ccifar10.SplitCIFAR10(
             n_experiences=args.incremental,
@@ -112,8 +103,8 @@ def run_experiment(args):
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)
     model.apply(initialize_icarl_net)
 
-    lr_milestones = [20,30,40,50]
-    lr_factor = 5.0
+    lr_milestones = [49, 63]
+    lr_factor = 5.
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
 
@@ -128,20 +119,18 @@ def run_experiment(args):
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
     
-    buffer_transform = transforms.Compose([icarl_cifar_augment_data])
-
     strategy = ICaRL(
         model.feature_extractor, 
         model.classifier, 
         optimizer, 
         args.memory_size, 
-        buffer_transform=buffer_transform, 
+        buffer_transform=transform_prototypes, 
         fixed_memory=True, 
         train_mb_size=args.train_batch, 
         train_epochs=args.epoch, 
         eval_mb_size=args.eval_batch, 
         device=device, 
-        plugins=[sched], 
+        # plugins=[sched], 
         evaluator=eval_plugin,
     )  # criterion = ICaRLLossPlugin()
 
@@ -167,9 +156,9 @@ if __name__ == "__main__":
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=2.)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--train_batch', type=int, default=512)
-    parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=60)
+    parser.add_argument('--train_batch', type=int, default=128)
+    parser.add_argument('--eval_batch', type=int, default=128)
+    parser.add_argument('--epoch', type=int, default=70)
  
     args = parser.parse_args()
 
