@@ -58,7 +58,7 @@ def main(args):
 
         train_transform = transforms.Compose(
             [
-                transforms.Resize((224, 244)),
+                transforms.Resize((128, 128)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -68,7 +68,7 @@ def main(args):
         )
         eval_transform = transforms.Compose(
             [
-                transforms.Resize((224, 244)),
+                transforms.Resize((128, 128)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
@@ -89,7 +89,8 @@ def main(args):
     # MODEL CREATION
     model = resnet32(num_classes=args.num_class)
     if args.dataset == 'CUB200':
-        model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
+        model.fc = torch.nn.Linear(in_features=40000, out_features=args.num_class)
+        # model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
 
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=2e-4)
     criterion = torch.nn.CrossEntropyLoss()
@@ -125,19 +126,6 @@ def main(args):
         plugins=[sched, replay_plugin],
         evaluator=eval_plugin,
     )
-    
-    # strategy = Replay(
-    #     model,
-    #     optimizer,
-    #     criterion,
-    #     mem_size=args.memory_size,
-    #     train_epochs=args.epoch,
-    #     train_mb_size=args.train_batch,
-    #     eval_mb_size=args.eval_batch,
-    #     device=device,
-    #     plugins=[sched],
-    #     evaluator=eval_plugin,
-    # )
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]

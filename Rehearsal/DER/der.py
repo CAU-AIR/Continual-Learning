@@ -260,7 +260,7 @@ class DER(SupervisedTemplate):
         )
         self.mbatch[0] = torch.cat((batch_x, self.mbatch[0]))
         self.mbatch[1] = torch.cat((batch_y, self.mbatch[1]))
-        self.mbatch[2] = torch.cat((batch_tid, self.mbatch[2]))
+        # self.mbatch[2] = torch.cat((batch_tid, self.mbatch[2]))
         self.batch_logits = batch_logits
 
     def training_epoch(self, **kwargs):

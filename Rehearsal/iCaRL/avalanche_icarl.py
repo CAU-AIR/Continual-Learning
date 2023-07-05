@@ -31,9 +31,8 @@ def run_experiment(args):
     cudnn.enabled = False 
     cudnn.deterministic = True
 
-    transform_prototypes = transforms.Compose([icarl_augment_data,])
-    
     if args.dataset == 'CIFAR10' or args.dataset == 'CIFAR100':
+        transform_prototypes = transforms.Compose([icarl_augment_data,])
         train_transform = transforms.Compose(
             [
                 transforms.ToTensor(),
@@ -98,6 +97,8 @@ def run_experiment(args):
             eval_transform=eval_transform,
             dataset_root='data/CUB200'
         )
+
+        transform_prototypes = None
     
 
     model: IcarlNet = make_icarl_net(num_classes=args.num_class)

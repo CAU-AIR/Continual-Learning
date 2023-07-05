@@ -116,6 +116,7 @@ def main(args):
         optimizer,
         criterion,
         mem_size=args.memory_size,
+        batch_size_mem=10,
         train_epochs=args.epoch,
         train_mb_size=args.train_batch,
         eval_mb_size=args.eval_batch,
@@ -144,10 +145,10 @@ if __name__ == "__main__":
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=0.01)
-    parser.add_argument('--memory_size', type=int, default=1000)
+    parser.add_argument('--memory_size', type=int, default=2000)
     parser.add_argument('--train_batch', type=int, default=512)
     parser.add_argument('--eval_batch', type=int, default=256)
-    parser.add_argument('--epoch', type=int, default=1)
+    parser.add_argument('--epoch', type=int, default=2)
 
     args = parser.parse_args()
 
