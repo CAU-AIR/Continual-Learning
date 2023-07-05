@@ -58,6 +58,7 @@ def run_experiment(args):
 
     elif args.dataset == 'CUB200':
         args.num_class = 200
+        args.memory_size = args.memory_size * args.num_class
 
         train_transform = transforms.Compose(
             [
@@ -148,13 +149,13 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=0.05)
-    parser.add_argument('--memory_size', type=int, default=1000)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
+    parser.add_argument('--memory_size', type=int, default=100)
     parser.add_argument('--subsample_size', type=int, default=50)
     parser.add_argument('--batch_size_mem', type=int, default=10)
     parser.add_argument('--train_batch', type=int, default=10)
     parser.add_argument('--eval_batch', type=int, default=64)
-    parser.add_argument('--epoch', type=int, default=15)
+    parser.add_argument('--epoch', type=int, default=30)
 
     args = parser.parse_args()
 

@@ -144,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_batch', type=int, default=10)
     parser.add_argument('--eval_batch', type=int, default=10)
     parser.add_argument('--epoch', type=int, default=15)
-    parser.add_argument('--input_size', type=list, default=[3, 32, 32])
+    parser.add_argument('--input_size', nargs='+', type=int, default=[3, 32, 32])
 
     args = parser.parse_args()
 
