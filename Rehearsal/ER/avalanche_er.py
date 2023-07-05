@@ -8,7 +8,7 @@ import torch.optim as optim
 from torchvision import transforms
 import torch.backends.cudnn as cudnn
 
-from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100
+from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100, ctiny_imagenet
 from avalanche.models.resnet32 import resnet32
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
 from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
@@ -58,7 +58,7 @@ def main(args):
 
         train_transform = transforms.Compose(
             [
-                transforms.Resize((128, 128)),
+                transforms.Resize((224, 224)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -68,7 +68,7 @@ def main(args):
         )
         eval_transform = transforms.Compose(
             [
-                transforms.Resize((128, 128)),
+                transforms.Resize((224, 224)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
@@ -85,14 +85,46 @@ def main(args):
             dataset_root='data/CUB200'
         )
 
+    elif args.dataset == 'TinyImageNet':
+        args.num_class = 200
+
+        train_transform = transforms.Compose(
+            [
+                transforms.RandomCrop(64, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821)
+                ),
+            ]
+        )
+        eval_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821)
+                ),
+            ]
+        )
+
+        benchmark = ctiny_imagenet.SplitTinyImageNet(
+            n_experiences=args.incremental,
+            seed=args.seed,
+            train_transform=train_transform,
+            eval_transform=eval_transform,
+            dataset_root='data/TinyImageNet'
+        )
+
 
     # MODEL CREATION
     model = resnet32(num_classes=args.num_class)
     if args.dataset == 'CUB200':
-        model.fc = torch.nn.Linear(in_features=40000, out_features=args.num_class)
-        # model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
-
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=2e-4)
+        # model.fc = torch.nn.Linear(in_features=40000, out_features=args.num_class)
+        model.fc = torch.nn.Linear(in_features=169344, out_features=args.num_class)
+    if args.dataset == 'TinyImageNet':
+        model.fc = torch.nn.Linear(in_features=5184, out_features=args.num_class)
+        
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     criterion = torch.nn.CrossEntropyLoss()
 
     sched = LRSchedulerPlugin(
@@ -143,7 +175,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--device', type=str, default='0')
     parser.add_argument('--device_name', type=str, default='cal_05')
-    parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200'])
+    parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200', 'TinyImageNet'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
     parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)

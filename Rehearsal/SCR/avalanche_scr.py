@@ -1,25 +1,24 @@
-import argparse
-import torch
 import random
+import argparse
 import numpy as np
 import datetime as dt
+
+import torch
 import torch.optim as optim
-import torch.backends.cudnn as cudnn
 from torchvision import transforms
-from torch.optim.lr_scheduler import MultiStepLR
+import torch.backends.cudnn as cudnn
 
-from avalanche.logging import InteractiveLogger, TensorboardLogger
 from avalanche.benchmarks.classic import ccub200, ccifar10, ccifar100, ctiny_imagenet
-from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins.lr_scheduling import LRSchedulerPlugin
-from avalanche.evaluation.metrics import ExperienceAccuracy, EpochAccuracy, StreamAccuracy
+from avalanche.evaluation.metrics import (ExperienceAccuracy, StreamAccuracy, EpochAccuracy,)
+from avalanche.logging import InteractiveLogger, TensorboardLogger
 
-from avalanche.models import IcarlNet, make_icarl_net, initialize_icarl_net
-from avalanche.training.supervised import ICaRL
-from utils.util import icarl_augment_data
+from resnet18 import resnet18
+from avalanche.training.plugins import EvaluationPlugin
+from supervised_contrastive_replay import SCR
+from scr_model import SCRModel
 
-
-def run_experiment(args):
+def main(args):
     device = 'cuda:' + args.device
     device = torch.device(device)
 
@@ -31,37 +30,24 @@ def run_experiment(args):
     cudnn.enabled = False 
     cudnn.deterministic = True
 
-    if args.dataset == 'CIFAR10' or args.dataset == 'CIFAR100':
-        transform_prototypes = transforms.Compose([icarl_augment_data,])
-        train_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                icarl_augment_data,
-            ])
-        eval_transform = transforms.Compose([transforms.ToTensor()])
-
     if args.dataset == 'CIFAR10':
         args.num_class = 10
-        fixed_class_order = np.arange(10)
+        fixed_class_order = [i for i in range(10)]
 
         benchmark = ccifar10.SplitCIFAR10(
             n_experiences=args.incremental,
             seed=args.seed,
-            train_transform=train_transform,
-            eval_transform=eval_transform,
             fixed_class_order=fixed_class_order,
             dataset_root='data/CIFAR10'
         )
 
     elif args.dataset == 'CIFAR100':
         args.num_class = 100
-        fixed_class_order = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15, 94, 92, 10, 72, 49, 78, 61, 14, 8, 86, 84, 96, 18, 24, 32, 45, 88, 11, 4, 67, 69, 66, 77, 47, 79, 93, 29, 50, 57, 83, 17, 81, 41, 12, 37, 59, 25, 20, 80, 73, 1, 28, 6, 46, 62, 82, 53, 9, 31, 75, 38, 63, 33, 74, 27, 22, 36, 3, 16, 21, 60, 19, 70, 90, 89, 43, 5, 42, 65, 76, 40, 30, 23, 85, 2, 95, 56, 48, 71, 64, 98, 13, 99, 7, 34, 55, 54, 26, 35, 39]
+        fixed_class_order = np.arange(100)
 
         benchmark = ccifar100.SplitCIFAR100(
             n_experiences=args.incremental,
             seed=args.seed,
-            train_transform=train_transform,
-            eval_transform=eval_transform,
             fixed_class_order=fixed_class_order,
             dataset_root='data/CIFAR100'
         )
@@ -98,8 +84,6 @@ def run_experiment(args):
             dataset_root='data/CUB200'
         )
 
-        transform_prototypes = None
-
     elif args.dataset == 'TinyImageNet':
         args.num_class = 200
 
@@ -130,43 +114,36 @@ def run_experiment(args):
             dataset_root='data/TinyImageNet'
         )
 
-        transform_prototypes = None
 
-
-    model: IcarlNet = make_icarl_net(num_classes=args.num_class)
-    model.apply(initialize_icarl_net)
-
-    lr_milestones = [49, 63]
-    lr_factor = 5.
+    # MODEL CREATION
+    model = resnet18(num_classes=args.num_class)
+    model = SCRModel(model, model.linear)
+        
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
-    sched = LRSchedulerPlugin(MultiStepLR(optimizer, lr_milestones, gamma=1.0 / lr_factor))
 
+    # choose some metrics and evaluation method
     date = dt.datetime.now()
     date = date.strftime("%Y_%m_%d_%H_%M_%S")
 
     interactive_logger = InteractiveLogger()
-    tensor_logger = TensorboardLogger("iCaRL/logs/" + args.dataset + "/" + args.device_name + "_" + date)
+    tensor_logger = TensorboardLogger("ER/logs/" + args.dataset + "/" + args.device_name + "_" + date)
+
     eval_plugin = EvaluationPlugin(
         EpochAccuracy(),
         ExperienceAccuracy(),
         StreamAccuracy(),
         loggers=[interactive_logger, tensor_logger])
     
-    strategy = ICaRL(
-        model.feature_extractor, 
-        model.classifier, 
-        optimizer, 
-        args.memory_size, 
-        buffer_transform=transform_prototypes, 
-        fixed_memory=True, 
-        train_mb_size=args.train_batch, 
-        train_epochs=args.epoch, 
-        eval_mb_size=args.eval_batch, 
-        device=device, 
-        # plugins=[sched], 
+    strategy = SCR(
+        model,
+        optimizer,
+        mem_size=args.memory_size,
+        train_epochs=args.epoch,
+        train_mb_size=args.train_batch,
+        eval_mb_size=args.eval_batch,
+        device=device,
         evaluator=eval_plugin,
-    )  # criterion = ICaRLLossPlugin()
-
+    )
 
     for i, exp in enumerate(benchmark.train_stream):
         eval_exps = [e for e in benchmark.test_stream][: i + 1]
@@ -187,12 +164,12 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', default='CIFAR100', choices=['CIFAR10', 'CIFAR100', 'CUB200', 'TinyImageNet'])
     parser.add_argument('--num_class', type=int, default=100)
     parser.add_argument('--incremental', type=int, default=10)
-    parser.add_argument('--lr', '--learning_rate', type=float, default=2.)
+    parser.add_argument('--lr', '--learning_rate', type=float, default=0.1)
     parser.add_argument('--memory_size', type=int, default=2000)
-    parser.add_argument('--train_batch', type=int, default=128)
-    parser.add_argument('--eval_batch', type=int, default=128)
-    parser.add_argument('--epoch', type=int, default=70)
- 
+    parser.add_argument('--train_batch', type=int, default=1)
+    parser.add_argument('--eval_batch', type=int, default=1)
+    parser.add_argument('--epoch', type=int, default=10)
+
     args = parser.parse_args()
 
-    run_experiment(args)
+    main(args)
